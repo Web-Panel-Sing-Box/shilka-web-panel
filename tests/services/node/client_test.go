@@ -172,6 +172,38 @@ func TestHTTPClientSetClientStatusSendsBody(t *testing.T) {
 	}
 }
 
+func TestHTTPClientBulkDeleteUsesOneRequest(t *testing.T) {
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.Method != http.MethodPost || r.URL.Path != "/api/node/v1/clients/bulk/delete" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		var req node.RemoteClientBulkRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if len(req.IDs) != 2 || req.IDs[0] != "9" || req.IDs[1] != "10" {
+			t.Fatalf("ids = %v", req.IDs)
+		}
+		_ = json.NewEncoder(w).Encode(node.RemoteClientBulkResponse{Results: []node.RemoteClientBulkResult{
+			{ID: "9", OK: true},
+			{ID: "10", Error: "not found"},
+		}})
+	}))
+	defer srv.Close()
+
+	response, err := node.NewHTTPClient().BulkDeleteClients(
+		context.Background(), nodeFromServerURL(t, srv.URL), []string{"9", "10"},
+	)
+	if err != nil {
+		t.Fatalf("BulkDeleteClients: %v", err)
+	}
+	if requests != 1 || len(response.Results) != 2 || !response.Results[0].OK || response.Results[1].Error != "not found" {
+		t.Fatalf("requests = %d, response = %+v", requests, response)
+	}
+}
+
 func TestHTTPClientRemoteStatusError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing", http.StatusNotFound)

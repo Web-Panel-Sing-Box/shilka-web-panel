@@ -367,7 +367,12 @@ func (handlerClientCache) GetByRemote(context.Context, int64, string) (*domain.C
 func (handlerClientCache) UpsertRemote(context.Context, int64, string, int64, *domain.Client) error {
 	return nil
 }
-func (handlerClientCache) Delete(context.Context, int64) error { return nil }
+func (handlerClientCache) Delete(context.Context, int64) error       { return nil }
+func (handlerClientCache) DeleteMany(context.Context, []int64) error { return nil }
+func (handlerClientCache) SetStatusMany(context.Context, []int64, domain.ClientStatus, bool) error {
+	return nil
+}
+func (handlerClientCache) ResetTrafficMany(context.Context, []int64) error { return nil }
 
 type handlerRemoteClienter struct{}
 
@@ -401,6 +406,23 @@ func (handlerRemoteClienter) ResetClientTraffic(context.Context, *domain.Node, s
 }
 func (handlerRemoteClienter) SetClientStatus(context.Context, *domain.Node, string, domain.ClientStatus) (*svcnode.RemoteClient, error) {
 	return nil, nil
+}
+func (handlerRemoteClienter) BulkDeleteClients(_ context.Context, _ *domain.Node, ids []string) (*svcnode.RemoteClientBulkResponse, error) {
+	return handlerBulkSuccess(ids), nil
+}
+func (handlerRemoteClienter) BulkResetClientTraffic(_ context.Context, _ *domain.Node, ids []string) (*svcnode.RemoteClientBulkResponse, error) {
+	return handlerBulkSuccess(ids), nil
+}
+func (handlerRemoteClienter) BulkSetClientStatus(_ context.Context, _ *domain.Node, ids []string, _ domain.ClientStatus) (*svcnode.RemoteClientBulkResponse, error) {
+	return handlerBulkSuccess(ids), nil
+}
+
+func handlerBulkSuccess(ids []string) *svcnode.RemoteClientBulkResponse {
+	results := make([]svcnode.RemoteClientBulkResult, len(ids))
+	for i, id := range ids {
+		results[i] = svcnode.RemoteClientBulkResult{ID: id, OK: true}
+	}
+	return &svcnode.RemoteClientBulkResponse{Results: results}
 }
 
 func ptrInt64(v int64) *int64 {

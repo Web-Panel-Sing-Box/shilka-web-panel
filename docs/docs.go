@@ -63,7 +63,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.changePasswordRequest"
+                            "$ref": "#/definitions/internal_transport_handler.changePasswordRequest"
                         }
                     }
                 ],
@@ -109,7 +109,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.loginRequest"
+                            "$ref": "#/definitions/internal_transport_handler.loginRequest"
                         }
                     }
                 ],
@@ -171,7 +171,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.loginRecoveryRequest"
+                            "$ref": "#/definitions/internal_transport_handler.loginRecoveryRequest"
                         }
                     }
                 ],
@@ -226,7 +226,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.loginTOTPRequest"
+                            "$ref": "#/definitions/internal_transport_handler.loginTOTPRequest"
                         }
                     }
                 ],
@@ -303,7 +303,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.meResponse"
+                            "$ref": "#/definitions/internal_transport_handler.meResponse"
                         }
                     },
                     "401": {
@@ -343,7 +343,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.confirmTOTPRequest"
+                            "$ref": "#/definitions/internal_transport_handler.confirmTOTPRequest"
                         }
                     }
                 ],
@@ -392,7 +392,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.disableTOTPRequest"
+                            "$ref": "#/definitions/internal_transport_handler.disableTOTPRequest"
                         }
                     }
                 ],
@@ -517,7 +517,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/handler.clientDTO"
+                                "$ref": "#/definitions/internal_transport_handler.clientDTO"
                             }
                         }
                     }
@@ -546,7 +546,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.createClientRequest"
+                            "$ref": "#/definitions/internal_transport_handler.createClientRequest"
                         }
                     }
                 ],
@@ -554,7 +554,148 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.clientDTO"
+                            "$ref": "#/definitions/internal_transport_handler.clientDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/clients/bulk/delete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Delete multiple clients",
+                "parameters": [
+                    {
+                        "description": "Client IDs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/clients/bulk/reset-traffic": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Reset traffic for multiple clients",
+                "parameters": [
+                    {
+                        "description": "Client IDs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/clients/bulk/set-status": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "clients"
+                ],
+                "summary": "Set status for multiple clients",
+                "parameters": [
+                    {
+                        "description": "Client IDs and status",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -587,7 +728,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.clientDTO"
+                            "$ref": "#/definitions/internal_transport_handler.clientDTO"
                         }
                     }
                 }
@@ -622,7 +763,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.updateClientRequest"
+                            "$ref": "#/definitions/internal_transport_handler.updateClientRequest"
                         }
                     }
                 ],
@@ -630,7 +771,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.clientDTO"
+                            "$ref": "#/definitions/internal_transport_handler.clientDTO"
                         }
                     }
                 }
@@ -697,7 +838,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.clientLinksDTO"
+                            "$ref": "#/definitions/internal_transport_handler.clientLinksDTO"
                         }
                     }
                 }
@@ -730,7 +871,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.clientDTO"
+                            "$ref": "#/definitions/internal_transport_handler.clientDTO"
                         }
                     }
                 }
@@ -767,7 +908,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.setStatusRequest"
+                            "$ref": "#/definitions/internal_transport_handler.setStatusRequest"
                         }
                     }
                 ],
@@ -775,7 +916,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.clientDTO"
+                            "$ref": "#/definitions/internal_transport_handler.clientDTO"
                         }
                     }
                 }
@@ -841,7 +982,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.coreLogsResponse"
+                            "$ref": "#/definitions/internal_transport_handler.coreLogsResponse"
                         }
                     }
                 }
@@ -957,7 +1098,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.coreStatusDTO"
+                            "$ref": "#/definitions/internal_transport_handler.coreStatusDTO"
                         }
                     }
                 }
@@ -1035,7 +1176,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.metricsDTO"
+                            "$ref": "#/definitions/internal_transport_handler.metricsDTO"
                         }
                     }
                 }
@@ -1061,7 +1202,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/handler.trafficPointDTO"
+                                "$ref": "#/definitions/internal_transport_handler.trafficPointDTO"
                             }
                         }
                     }
@@ -1111,7 +1252,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/handler.inboundDTO"
+                                "$ref": "#/definitions/internal_transport_handler.inboundDTO"
                             }
                         }
                     }
@@ -1140,7 +1281,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.inboundRequest"
+                            "$ref": "#/definitions/internal_transport_handler.inboundRequest"
                         }
                     }
                 ],
@@ -1148,7 +1289,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.inboundDTO"
+                            "$ref": "#/definitions/internal_transport_handler.inboundDTO"
                         }
                     }
                 }
@@ -1181,7 +1322,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.inboundDTO"
+                            "$ref": "#/definitions/internal_transport_handler.inboundDTO"
                         }
                     }
                 }
@@ -1216,7 +1357,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.inboundRequest"
+                            "$ref": "#/definitions/internal_transport_handler.inboundRequest"
                         }
                     }
                 ],
@@ -1224,7 +1365,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.inboundDTO"
+                            "$ref": "#/definitions/internal_transport_handler.inboundDTO"
                         }
                     }
                 }
@@ -1291,7 +1432,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/handler.inboundDTO"
+                            "$ref": "#/definitions/internal_transport_handler.inboundDTO"
                         }
                     }
                 }
@@ -1324,7 +1465,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.inboundDTO"
+                            "$ref": "#/definitions/internal_transport_handler.inboundDTO"
                         }
                     }
                 }
@@ -1377,7 +1518,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/handler.logEntryDTO"
+                                "$ref": "#/definitions/internal_transport_handler.logEntryDTO"
                             }
                         }
                     }
@@ -1409,7 +1550,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.frontendLogRequest"
+                            "$ref": "#/definitions/internal_transport_handler.frontendLogRequest"
                         }
                     }
                 ],
@@ -1435,6 +1576,120 @@ const docTemplate = `{
                 }
             }
         },
+        "/node/v1/clients/bulk/delete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "node"
+                ],
+                "summary": "Delete multiple local clients through the node API",
+                "parameters": [
+                    {
+                        "description": "Client IDs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/node/v1/clients/bulk/reset-traffic": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "node"
+                ],
+                "summary": "Reset multiple local client counters through the node API",
+                "parameters": [
+                    {
+                        "description": "Client IDs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/node/v1/clients/bulk/set-status": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "node"
+                ],
+                "summary": "Set multiple local client statuses through the node API",
+                "parameters": [
+                    {
+                        "description": "Client IDs and status",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.bulkClientResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/panel/update": {
             "post": {
                 "security": [
@@ -1454,7 +1709,7 @@ const docTemplate = `{
                     "202": {
                         "description": "Accepted",
                         "schema": {
-                            "$ref": "#/definitions/handler.panelVersionDTO"
+                            "$ref": "#/definitions/internal_transport_handler.panelVersionDTO"
                         }
                     },
                     "409": {
@@ -1496,7 +1751,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.panelVersionDTO"
+                            "$ref": "#/definitions/internal_transport_handler.panelVersionDTO"
                         }
                     }
                 }
@@ -1545,10 +1800,86 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/subscription/{token}/meta": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscription"
+                ],
+                "summary": "Subscription metadata for the public subscription page (public)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.subscriptionMetaDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
-        "handler.changePasswordRequest": {
+        "internal_transport_handler.bulkClientRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_handler.bulkClientResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_handler.bulkClientResultDTO"
+                    }
+                }
+            }
+        },
+        "internal_transport_handler.bulkClientResultDTO": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_transport_handler.changePasswordRequest": {
             "type": "object",
             "properties": {
                 "current_password": {
@@ -1561,7 +1892,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.clientDTO": {
+        "internal_transport_handler.clientDTO": {
             "type": "object",
             "properties": {
                 "enabled": {
@@ -1575,6 +1906,12 @@ const docTemplate = `{
                 },
                 "inboundId": {
                     "type": "string"
+                },
+                "inboundIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "name": {
                     "type": "string"
@@ -1614,11 +1951,17 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.clientLinksDTO": {
+        "internal_transport_handler.clientLinksDTO": {
             "type": "object",
             "properties": {
                 "link": {
                     "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_handler.subscriptionLinkDTO"
+                    }
                 },
                 "shareLink": {
                     "type": "string"
@@ -1628,7 +1971,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.confirmTOTPRequest": {
+        "internal_transport_handler.confirmTOTPRequest": {
             "type": "object",
             "properties": {
                 "code": {
@@ -1637,7 +1980,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.coreLogsResponse": {
+        "internal_transport_handler.coreLogsResponse": {
             "type": "object",
             "properties": {
                 "hasMore": {
@@ -1654,7 +1997,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.coreStatusDTO": {
+        "internal_transport_handler.coreStatusDTO": {
             "type": "object",
             "properties": {
                 "lastError": {
@@ -1674,7 +2017,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.createClientRequest": {
+        "internal_transport_handler.createClientRequest": {
             "type": "object",
             "properties": {
                 "expiry": {
@@ -1682,6 +2025,12 @@ const docTemplate = `{
                 },
                 "inboundId": {
                     "type": "string"
+                },
+                "inboundIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "name": {
                     "type": "string"
@@ -1697,7 +2046,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.disableTOTPRequest": {
+        "internal_transport_handler.disableTOTPRequest": {
             "type": "object",
             "properties": {
                 "code": {
@@ -1706,7 +2055,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.diskSegmentDTO": {
+        "internal_transport_handler.diskSegmentDTO": {
             "type": "object",
             "properties": {
                 "color": {
@@ -1723,7 +2072,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.frontendLogRequest": {
+        "internal_transport_handler.frontendLogRequest": {
             "type": "object",
             "properties": {
                 "fields": {
@@ -1740,7 +2089,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.inboundDTO": {
+        "internal_transport_handler.inboundDTO": {
             "type": "object",
             "properties": {
                 "clientCount": {
@@ -1774,7 +2123,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "settings": {
-                    "$ref": "#/definitions/handler.inboundSettingsDTO"
+                    "$ref": "#/definitions/internal_transport_handler.inboundSettingsDTO"
                 },
                 "sni": {
                     "type": "string"
@@ -1790,7 +2139,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.inboundRequest": {
+        "internal_transport_handler.inboundRequest": {
             "type": "object",
             "properties": {
                 "acmeDomain": {
@@ -1876,7 +2225,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.inboundSettingsDTO": {
+        "internal_transport_handler.inboundSettingsDTO": {
             "type": "object",
             "properties": {
                 "acmeDomain": {
@@ -1955,7 +2304,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.logEntryDTO": {
+        "internal_transport_handler.logEntryDTO": {
             "type": "object",
             "properties": {
                 "fields": {
@@ -1984,7 +2333,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.loginRecoveryRequest": {
+        "internal_transport_handler.loginRecoveryRequest": {
             "type": "object",
             "properties": {
                 "code": {
@@ -1997,7 +2346,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.loginRequest": {
+        "internal_transport_handler.loginRequest": {
             "type": "object",
             "properties": {
                 "password": {
@@ -2010,7 +2359,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.loginTOTPRequest": {
+        "internal_transport_handler.loginTOTPRequest": {
             "type": "object",
             "properties": {
                 "code": {
@@ -2023,7 +2372,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.meResponse": {
+        "internal_transport_handler.meResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -2043,7 +2392,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.metricsDTO": {
+        "internal_transport_handler.metricsDTO": {
             "type": "object",
             "properties": {
                 "coreRunning": {
@@ -2058,7 +2407,7 @@ const docTemplate = `{
                 "diskSegments": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/handler.diskSegmentDTO"
+                        "$ref": "#/definitions/internal_transport_handler.diskSegmentDTO"
                     }
                 },
                 "downloadBps": {
@@ -2111,7 +2460,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.panelVersionDTO": {
+        "internal_transport_handler.panelVersionDTO": {
             "type": "object",
             "properties": {
                 "checkedAt": {
@@ -2134,7 +2483,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.setStatusRequest": {
+        "internal_transport_handler.setStatusRequest": {
             "type": "object",
             "properties": {
                 "status": {
@@ -2142,7 +2491,50 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.trafficPointDTO": {
+        "internal_transport_handler.subscriptionLinkDTO": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_transport_handler.subscriptionMetaDTO": {
+            "type": "object",
+            "properties": {
+                "expiry": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_transport_handler.subscriptionLinkDTO"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "online": {
+                    "type": "boolean"
+                },
+                "subscriptionUrl": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "used": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_transport_handler.trafficPointDTO": {
             "type": "object",
             "properties": {
                 "down": {
@@ -2156,7 +2548,7 @@ const docTemplate = `{
                 }
             }
         },
-        "handler.updateClientRequest": {
+        "internal_transport_handler.updateClientRequest": {
             "type": "object",
             "properties": {
                 "expiry": {
@@ -2164,6 +2556,12 @@ const docTemplate = `{
                 },
                 "inboundId": {
                     "type": "string"
+                },
+                "inboundIds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "name": {
                     "type": "string"

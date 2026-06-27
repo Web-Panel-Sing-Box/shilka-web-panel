@@ -56,6 +56,9 @@ type RemoteClienter interface {
 	DeleteClient(ctx context.Context, n *domain.Node, remoteID string) error
 	ResetClientTraffic(ctx context.Context, n *domain.Node, remoteID string) (*RemoteClient, error)
 	SetClientStatus(ctx context.Context, n *domain.Node, remoteID string, status domain.ClientStatus) (*RemoteClient, error)
+	BulkDeleteClients(ctx context.Context, n *domain.Node, remoteIDs []string) (*RemoteClientBulkResponse, error)
+	BulkResetClientTraffic(ctx context.Context, n *domain.Node, remoteIDs []string) (*RemoteClientBulkResponse, error)
+	BulkSetClientStatus(ctx context.Context, n *domain.Node, remoteIDs []string, status domain.ClientStatus) (*RemoteClientBulkResponse, error)
 }
 
 type HTTPClient struct {
@@ -147,6 +150,26 @@ func (c *HTTPClient) SetClientStatus(ctx context.Context, n *domain.Node, remote
 	var out RemoteClient
 	in := RemoteClientStatusRequest{Status: string(status)}
 	if err := c.do(ctx, n, http.MethodPost, "/api/node/v1/clients/"+remoteID+"/status", in, c.writeTimeout, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *HTTPClient) BulkDeleteClients(ctx context.Context, n *domain.Node, remoteIDs []string) (*RemoteClientBulkResponse, error) {
+	return c.bulkClients(ctx, n, "/api/node/v1/clients/bulk/delete", RemoteClientBulkRequest{IDs: remoteIDs})
+}
+
+func (c *HTTPClient) BulkResetClientTraffic(ctx context.Context, n *domain.Node, remoteIDs []string) (*RemoteClientBulkResponse, error) {
+	return c.bulkClients(ctx, n, "/api/node/v1/clients/bulk/reset-traffic", RemoteClientBulkRequest{IDs: remoteIDs})
+}
+
+func (c *HTTPClient) BulkSetClientStatus(ctx context.Context, n *domain.Node, remoteIDs []string, status domain.ClientStatus) (*RemoteClientBulkResponse, error) {
+	return c.bulkClients(ctx, n, "/api/node/v1/clients/bulk/set-status", RemoteClientBulkRequest{IDs: remoteIDs, Status: string(status)})
+}
+
+func (c *HTTPClient) bulkClients(ctx context.Context, n *domain.Node, suffix string, in RemoteClientBulkRequest) (*RemoteClientBulkResponse, error) {
+	var out RemoteClientBulkResponse
+	if err := c.do(ctx, n, http.MethodPost, suffix, in, c.writeTimeout, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -52,6 +52,24 @@ export type ClientLink = {
   protocol: string;
 };
 
+export type BulkClientRequest = {
+  ids: string[];
+};
+
+export type BulkClientStatusRequest = BulkClientRequest & {
+  status: Extract<ClientStatus, "active" | "disabled">;
+};
+
+export type BulkClientResult = {
+  id: string;
+  ok: boolean;
+  error: string;
+};
+
+export type BulkClientResponse = {
+  results: BulkClientResult[];
+};
+
 export type ClientLinksDTO = {
   link: string;
   shareLink: string;
@@ -99,6 +117,21 @@ export function resetClientTraffic(id: string): Promise<ClientDTO> {
 
 export function setClientStatus(id: string, body: ClientSetStatusRequest): Promise<ClientDTO> {
   return apiPost<ClientDTO>(`/clients/${id}/status`, body);
+}
+
+export function bulkDeleteClients(ids: string[]): Promise<BulkClientResponse> {
+  return apiPost<BulkClientResponse>("/clients/bulk/delete", { ids });
+}
+
+export function bulkResetClientTraffic(ids: string[]): Promise<BulkClientResponse> {
+  return apiPost<BulkClientResponse>("/clients/bulk/reset-traffic", { ids });
+}
+
+export function bulkSetClientStatus(
+  ids: string[],
+  status: BulkClientStatusRequest["status"],
+): Promise<BulkClientResponse> {
+  return apiPost<BulkClientResponse>("/clients/bulk/set-status", { ids, status });
 }
 
 export async function getClientLinks(id: string): Promise<ClientLinksDTO> {

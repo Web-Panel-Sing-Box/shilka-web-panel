@@ -24,6 +24,9 @@ type Repo interface {
 	Delete(ctx context.Context, id int64) error
 	SetStatus(ctx context.Context, id int64, status domain.ClientStatus, enabled bool) error
 	ResetTraffic(ctx context.Context, id int64) error
+	DeleteMany(ctx context.Context, ids []int64) error
+	SetStatusMany(ctx context.Context, ids []int64, status domain.ClientStatus, enabled bool) error
+	ResetTrafficMany(ctx context.Context, ids []int64) error
 }
 
 // InboundLookup validates that a referenced inbound exists.
@@ -81,6 +84,15 @@ type UpdateInput struct {
 	Expiry             *time.Time
 	Status             *domain.ClientStatus
 	StartAfterFirstUse *bool
+}
+
+// BulkResult preserves the requested client ID and reports its independent
+// outcome. Err is intentionally kept internal; handlers map it to safe API
+// messages before serializing a response.
+type BulkResult struct {
+	ID  int64
+	OK  bool
+	Err error
 }
 
 func (s *Service) List(ctx context.Context, inboundFilter *int64) ([]domain.Client, error) {
@@ -267,4 +279,84 @@ func (s *Service) ResetTraffic(ctx context.Context, id int64) (*domain.Client, e
 		return nil, err
 	}
 	return c, nil
+}
+
+// BulkDelete deletes every valid local client in one repository transaction.
+// Missing and remote clients remain independent failures. A successful batch
+// schedules exactly one config apply.
+func (s *Service) BulkDelete(ctx context.Context, ids []int64) ([]BulkResult, error) {
+	return s.bulkMutate(ctx, ids, true, func(valid []int64) error {
+		return s.repo.DeleteMany(ctx, valid)
+	})
+}
+
+// BulkSetStatus updates status and enabled together in one transaction and
+// schedules exactly one config apply when at least one client changes.
+func (s *Service) BulkSetStatus(ctx context.Context, ids []int64, status domain.ClientStatus) ([]BulkResult, error) {
+	if status != domain.ClientStatusActive && status != domain.ClientStatusDisabled {
+		err := fmt.Errorf("%w: status must be active or disabled", ErrValidation)
+		return failedBulkResults(ids, err), err
+	}
+	enabled := status == domain.ClientStatusActive
+	return s.bulkMutate(ctx, ids, true, func(valid []int64) error {
+		return s.repo.SetStatusMany(ctx, valid, status, enabled)
+	})
+}
+
+// BulkResetTraffic clears counters in one transaction. Traffic counters are
+// not part of generated sing-box config, so this operation does not apply it.
+func (s *Service) BulkResetTraffic(ctx context.Context, ids []int64) ([]BulkResult, error) {
+	return s.bulkMutate(ctx, ids, false, func(valid []int64) error {
+		return s.repo.ResetTrafficMany(ctx, valid)
+	})
+}
+
+func (s *Service) bulkMutate(
+	ctx context.Context,
+	ids []int64,
+	notify bool,
+	mutate func([]int64) error,
+) ([]BulkResult, error) {
+	results := make([]BulkResult, len(ids))
+	valid := make([]int64, 0, len(ids))
+	validIndexes := make([]int, 0, len(ids))
+	for i, id := range ids {
+		results[i].ID = id
+		c, err := s.repo.GetByID(ctx, id)
+		if err != nil {
+			results[i].Err = err
+			continue
+		}
+		if c.NodeID != nil {
+			results[i].Err = fmt.Errorf("%w: remote client must be changed through its node", ErrValidation)
+			continue
+		}
+		valid = append(valid, id)
+		validIndexes = append(validIndexes, i)
+	}
+
+	if len(valid) == 0 {
+		return results, nil
+	}
+	if err := mutate(valid); err != nil {
+		for _, i := range validIndexes {
+			results[i].Err = err
+		}
+		return results, err
+	}
+	for _, i := range validIndexes {
+		results[i].OK = true
+	}
+	if notify {
+		s.notify()
+	}
+	return results, nil
+}
+
+func failedBulkResults(ids []int64, err error) []BulkResult {
+	results := make([]BulkResult, len(ids))
+	for i, id := range ids {
+		results[i] = BulkResult{ID: id, Err: err}
+	}
+	return results
 }

@@ -115,6 +115,21 @@ type RemoteClientStatusRequest struct {
 	Status string `json:"status"`
 }
 
+type RemoteClientBulkRequest struct {
+	IDs    []string `json:"ids"`
+	Status string   `json:"status,omitempty"`
+}
+
+type RemoteClientBulkResult struct {
+	ID    string `json:"id"`
+	OK    bool   `json:"ok"`
+	Error string `json:"error"`
+}
+
+type RemoteClientBulkResponse struct {
+	Results []RemoteClientBulkResult `json:"results"`
+}
+
 type RemoteSnapshot struct {
 	Status   RemoteStatus    `json:"status"`
 	Inbounds []RemoteInbound `json:"inbounds"`

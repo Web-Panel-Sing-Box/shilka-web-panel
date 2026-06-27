@@ -48,6 +48,9 @@ func (h *NodeHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/node/v1/inbounds/{id}", h.NodeDeleteInbound)
 	mux.HandleFunc("POST /api/node/v1/inbounds/{id}/toggle", h.NodeToggleInbound)
 	mux.HandleFunc("POST /api/node/v1/clients", h.NodeCreateClient)
+	mux.HandleFunc("POST /api/node/v1/clients/bulk/delete", h.NodeBulkDeleteClients)
+	mux.HandleFunc("POST /api/node/v1/clients/bulk/set-status", h.NodeBulkSetClientStatus)
+	mux.HandleFunc("POST /api/node/v1/clients/bulk/reset-traffic", h.NodeBulkResetClientTraffic)
 	mux.HandleFunc("PUT /api/node/v1/clients/{id}", h.NodeUpdateClient)
 	mux.HandleFunc("DELETE /api/node/v1/clients/{id}", h.NodeDeleteClient)
 	mux.HandleFunc("POST /api/node/v1/clients/{id}/reset-traffic", h.NodeResetClientTraffic)
@@ -505,6 +508,100 @@ func (h *NodeHandler) NodeSetClientStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, remoteClientFromDomain(c))
+}
+
+// NodeBulkDeleteClients godoc
+//
+//	@Summary	Delete multiple local clients through the node API
+//	@Tags		node
+//	@Accept		json
+//	@Produce	json
+//	@Security	BearerAuth
+//	@Param		request	body		bulkClientRequest	true	"Client IDs"
+//	@Success	200		{object}	bulkClientResponse
+//	@Router		/node/v1/clients/bulk/delete [post]
+func (h *NodeHandler) NodeBulkDeleteClients(w http.ResponseWriter, r *http.Request) {
+	targets, ok := decodeBulkClientTargets(w, r)
+	if !ok {
+		return
+	}
+	ids := bulkTargetIDs(targets)
+	results, err := h.clients.BulkDelete(r.Context(), ids)
+	h.writeNodeBulkResults(w, "node bulk delete clients", targets, results, err)
+}
+
+// NodeBulkResetClientTraffic godoc
+//
+//	@Summary	Reset multiple local client counters through the node API
+//	@Tags		node
+//	@Accept		json
+//	@Produce	json
+//	@Security	BearerAuth
+//	@Param		request	body		bulkClientRequest	true	"Client IDs"
+//	@Success	200		{object}	bulkClientResponse
+//	@Router		/node/v1/clients/bulk/reset-traffic [post]
+func (h *NodeHandler) NodeBulkResetClientTraffic(w http.ResponseWriter, r *http.Request) {
+	targets, ok := decodeBulkClientTargets(w, r)
+	if !ok {
+		return
+	}
+	ids := bulkTargetIDs(targets)
+	results, err := h.clients.BulkResetTraffic(r.Context(), ids)
+	h.writeNodeBulkResults(w, "node bulk reset client traffic", targets, results, err)
+}
+
+// NodeBulkSetClientStatus godoc
+//
+//	@Summary	Set multiple local client statuses through the node API
+//	@Tags		node
+//	@Accept		json
+//	@Produce	json
+//	@Security	BearerAuth
+//	@Param		request	body		bulkClientRequest	true	"Client IDs and status"
+//	@Success	200		{object}	bulkClientResponse
+//	@Router		/node/v1/clients/bulk/set-status [post]
+func (h *NodeHandler) NodeBulkSetClientStatus(w http.ResponseWriter, r *http.Request) {
+	var req bulkClientRequest
+	targets, ok := decodeBulkClientRequest(w, r, &req)
+	if !ok {
+		return
+	}
+	status := domain.ClientStatus(req.Status)
+	if status != domain.ClientStatusActive && status != domain.ClientStatusDisabled {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "status must be active or disabled"})
+		return
+	}
+	ids := bulkTargetIDs(targets)
+	results, err := h.clients.BulkSetStatus(r.Context(), ids, status)
+	h.writeNodeBulkResults(w, "node bulk set client status", targets, results, err)
+}
+
+func bulkTargetIDs(targets []bulkClientTarget) []int64 {
+	ids := make([]int64, len(targets))
+	for i, target := range targets {
+		ids[i] = target.id
+	}
+	return ids
+}
+
+func (h *NodeHandler) writeNodeBulkResults(
+	w http.ResponseWriter,
+	op string,
+	targets []bulkClientTarget,
+	results []svcclient.BulkResult,
+	err error,
+) {
+	if err != nil {
+		h.log.Error(op, slog.String("error", err.Error()))
+	}
+	response := bulkClientResponse{Results: make([]bulkClientResultDTO, len(targets))}
+	indexByID := make(map[int64]int, len(targets))
+	for i, target := range targets {
+		response.Results[i].ID = target.rawID
+		indexByID[target.id] = i
+	}
+	applyBulkResults(response.Results, indexByID, results)
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *NodeHandler) localStatus(ctx context.Context) svcnode.RemoteStatus {

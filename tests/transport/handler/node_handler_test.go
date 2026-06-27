@@ -55,7 +55,9 @@ func (r *nodeFakeRepo) SetStatus(_ context.Context, id int64, status domain.Node
 // configurable error to simulate an unreachable node; the remaining methods are
 // unused stubs needed only to satisfy the interface.
 type nodeFakeRemote struct {
-	snapErr error
+	snapErr         error
+	bulkDeleteCalls map[int64]int
+	bulkDeleteErrs  map[int64]error
 }
 
 func (c *nodeFakeRemote) Status(context.Context, *domain.Node) (*svcnode.RemoteStatus, time.Duration, error) {
@@ -96,6 +98,32 @@ func (c *nodeFakeRemote) ResetClientTraffic(context.Context, *domain.Node, strin
 
 func (c *nodeFakeRemote) SetClientStatus(context.Context, *domain.Node, string, domain.ClientStatus) (*svcnode.RemoteClient, error) {
 	return nil, nil
+}
+
+func (c *nodeFakeRemote) BulkDeleteClients(_ context.Context, node *domain.Node, ids []string) (*svcnode.RemoteClientBulkResponse, error) {
+	if c.bulkDeleteCalls != nil {
+		c.bulkDeleteCalls[node.ID]++
+	}
+	if err := c.bulkDeleteErrs[node.ID]; err != nil {
+		return nil, err
+	}
+	return nodeHandlerBulkSuccess(ids), nil
+}
+
+func (c *nodeFakeRemote) BulkResetClientTraffic(_ context.Context, _ *domain.Node, ids []string) (*svcnode.RemoteClientBulkResponse, error) {
+	return nodeHandlerBulkSuccess(ids), nil
+}
+
+func (c *nodeFakeRemote) BulkSetClientStatus(_ context.Context, _ *domain.Node, ids []string, _ domain.ClientStatus) (*svcnode.RemoteClientBulkResponse, error) {
+	return nodeHandlerBulkSuccess(ids), nil
+}
+
+func nodeHandlerBulkSuccess(ids []string) *svcnode.RemoteClientBulkResponse {
+	results := make([]svcnode.RemoteClientBulkResult, len(ids))
+	for i, id := range ids {
+		results[i] = svcnode.RemoteClientBulkResult{ID: id, OK: true}
+	}
+	return &svcnode.RemoteClientBulkResponse{Results: results}
 }
 
 func testNodeMux(remote svcnode.RemoteClienter) *http.ServeMux {

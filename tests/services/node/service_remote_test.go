@@ -143,10 +143,39 @@ func (c *remoteClientCache) Delete(_ context.Context, id int64) error {
 	return nil
 }
 
+func (c *remoteClientCache) DeleteMany(_ context.Context, ids []int64) error {
+	for _, id := range ids {
+		delete(c.items, id)
+	}
+	return nil
+}
+
+func (c *remoteClientCache) SetStatusMany(_ context.Context, ids []int64, status domain.ClientStatus, enabled bool) error {
+	for _, id := range ids {
+		if client, ok := c.items[id]; ok {
+			client.Status = status
+			client.Enabled = enabled
+		}
+	}
+	return nil
+}
+
+func (c *remoteClientCache) ResetTrafficMany(_ context.Context, ids []int64) error {
+	for _, id := range ids {
+		if client, ok := c.items[id]; ok {
+			client.UsedUp = 0
+			client.UsedDown = 0
+		}
+	}
+	return nil
+}
+
 type fakeRemoteClienter struct {
 	createClientReq  *svcnode.RemoteClientCreateRequest
 	updateInboundReq *svcnode.RemoteInboundRequest
 	deleteInboundErr error
+	bulkDeleteCalls  int
+	bulkDeleteIDs    []string
 }
 
 func (f *fakeRemoteClienter) Status(context.Context, *domain.Node) (*svcnode.RemoteStatus, time.Duration, error) {
@@ -187,6 +216,25 @@ func (f *fakeRemoteClienter) ResetClientTraffic(context.Context, *domain.Node, s
 }
 func (f *fakeRemoteClienter) SetClientStatus(context.Context, *domain.Node, string, domain.ClientStatus) (*svcnode.RemoteClient, error) {
 	return nil, nil
+}
+func (f *fakeRemoteClienter) BulkDeleteClients(_ context.Context, _ *domain.Node, ids []string) (*svcnode.RemoteClientBulkResponse, error) {
+	f.bulkDeleteCalls++
+	f.bulkDeleteIDs = append([]string(nil), ids...)
+	return successfulRemoteBulk(ids), nil
+}
+func (f *fakeRemoteClienter) BulkResetClientTraffic(_ context.Context, _ *domain.Node, ids []string) (*svcnode.RemoteClientBulkResponse, error) {
+	return successfulRemoteBulk(ids), nil
+}
+func (f *fakeRemoteClienter) BulkSetClientStatus(_ context.Context, _ *domain.Node, ids []string, _ domain.ClientStatus) (*svcnode.RemoteClientBulkResponse, error) {
+	return successfulRemoteBulk(ids), nil
+}
+
+func successfulRemoteBulk(ids []string) *svcnode.RemoteClientBulkResponse {
+	results := make([]svcnode.RemoteClientBulkResult, len(ids))
+	for i, id := range ids {
+		results[i] = svcnode.RemoteClientBulkResult{ID: id, OK: true}
+	}
+	return &svcnode.RemoteClientBulkResponse{Results: results}
 }
 
 func TestServiceCreateRemoteClientMapsInboundAndCaches(t *testing.T) {
@@ -269,6 +317,36 @@ func TestServiceRejectsCrossNodeClientMove(t *testing.T) {
 	_, err := svc.UpdateClient(context.Background(), 20, svcclient.UpdateInput{InboundID: ptrInt64(10)})
 	if !errors.Is(err, svcnode.ErrValidation) {
 		t.Fatalf("expected ErrValidation, got %v", err)
+	}
+}
+
+func TestServiceBulkDeleteUsesOneRemoteRequestAndClearsCache(t *testing.T) {
+	inbounds := newRemoteInboundCache()
+	clients := newRemoteClientCache()
+	nodeID := int64(1)
+	clients.items[20] = &domain.Client{ID: 20, NodeID: ptrInt64(nodeID), RemoteID: "90", Name: "one"}
+	clients.items[21] = &domain.Client{ID: 21, NodeID: ptrInt64(nodeID), RemoteID: "91", Name: "two"}
+	remote := &fakeRemoteClienter{}
+	service := newRemoteService(inbounds, clients, remote)
+
+	results, err := service.BulkDeleteClients(context.Background(), nodeID, []int64{20, 21})
+	if err != nil {
+		t.Fatalf("BulkDeleteClients: %v", err)
+	}
+	if remote.bulkDeleteCalls != 1 {
+		t.Fatalf("remote calls = %d, want 1", remote.bulkDeleteCalls)
+	}
+	if len(remote.bulkDeleteIDs) != 2 || remote.bulkDeleteIDs[0] != "90" || remote.bulkDeleteIDs[1] != "91" {
+		t.Fatalf("remote ids = %v", remote.bulkDeleteIDs)
+	}
+	if !results[0].OK || !results[1].OK {
+		t.Fatalf("results = %+v", results)
+	}
+	if _, exists := clients.items[20]; exists {
+		t.Fatal("client 20 remains cached")
+	}
+	if _, exists := clients.items[21]; exists {
+		t.Fatal("client 21 remains cached")
 	}
 }
 

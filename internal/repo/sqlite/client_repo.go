@@ -211,6 +211,67 @@ func (r *ClientRepo) ResetTraffic(ctx context.Context, id int64) error {
 	return nil
 }
 
+func (r *ClientRepo) DeleteMany(ctx context.Context, ids []int64) error {
+	return r.execClientBatch(ctx, "delete clients", `DELETE FROM clients WHERE id = ?`, ids, func(id int64) []any {
+		return []any{id}
+	})
+}
+
+func (r *ClientRepo) SetStatusMany(ctx context.Context, ids []int64, status domain.ClientStatus, enabled bool) error {
+	return r.execClientBatch(ctx, "set client statuses",
+		`UPDATE clients SET status = ?, enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		ids, func(id int64) []any { return []any{status, enabled, id} })
+}
+
+func (r *ClientRepo) ResetTrafficMany(ctx context.Context, ids []int64) error {
+	return r.execClientBatch(ctx, "reset client traffic",
+		`UPDATE clients SET used_up = 0, used_down = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		ids, func(id int64) []any { return []any{id} })
+}
+
+func (r *ClientRepo) execClientBatch(
+	ctx context.Context,
+	op string,
+	query string,
+	ids []int64,
+	args func(int64) []any,
+) (err error) {
+	if len(ids) == 0 {
+		return nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin %s transaction: %w", op, err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("prepare %s: %w", op, err)
+	}
+	defer stmt.Close()
+	for _, id := range ids {
+		result, execErr := stmt.ExecContext(ctx, args(id)...)
+		if execErr != nil {
+			return fmt.Errorf("%s: %w", op, execErr)
+		}
+		rows, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return fmt.Errorf("%s rows affected: %w", op, rowsErr)
+		}
+		if rows == 0 {
+			return repo.ErrNotFound
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit %s: %w", op, err)
+	}
+	return nil
+}
+
 func (r *ClientRepo) SetFirstUsed(ctx context.Context, id int64, at any) error {
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE clients SET first_used_at = ? WHERE id = ? AND first_used_at IS NULL`, at, id)

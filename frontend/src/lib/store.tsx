@@ -10,7 +10,7 @@ import {
 import * as api from "@/api";
 import { getToken } from "@/api/client";
 import type { InboundDTO } from "@/api/inbounds";
-import type { ClientDTO } from "@/api/clients";
+import type { BulkClientResponse, ClientDTO } from "@/api/clients";
 import type { ClientStatus } from "@/api/types";
 import type { MetricsDTO, TrafficPoint } from "@/api/dashboard";
 import type { LogEntryDTO } from "@/api/logs";
@@ -60,6 +60,9 @@ type StoreActions = {
   removeClient: (id: string) => Promise<void>;
   resetClientTraffic: (id: string) => Promise<void>;
   setClientStatus: (id: string, status: ClientStatus) => Promise<void>;
+  bulkDeleteClients: (ids: string[]) => Promise<BulkClientResponse>;
+  bulkResetClientTraffic: (ids: string[]) => Promise<BulkClientResponse>;
+  bulkSetClientStatus: (ids: string[], status: Extract<ClientStatus, "active" | "disabled">) => Promise<BulkClientResponse>;
   setPaused: (v: boolean) => void;
   appendLog: (level: string, message: string) => void;
   setCoreRunning: (v: boolean) => void;
@@ -128,6 +131,9 @@ export function StoreProvider({ children, seed }: { children: React.ReactNode; s
     removeClient: async (id) => { await api.deleteClient(id); await loadAll(); },
     resetClientTraffic: async (id) => { await api.resetClientTraffic(id); await loadAll(); },
     setClientStatus: async (id, status) => { await api.setClientStatus(id, { status }); await loadAll(); },
+    bulkDeleteClients: async (ids) => { const result = await api.bulkDeleteClients(ids); await loadAll(); return result; },
+    bulkResetClientTraffic: async (ids) => { const result = await api.bulkResetClientTraffic(ids); await loadAll(); return result; },
+    bulkSetClientStatus: async (ids, status) => { const result = await api.bulkSetClientStatus(ids, status); await loadAll(); return result; },
     setPaused,
     appendLog: () => {},
     setCoreRunning: (v) => setMetrics(prev => ({ ...prev, coreRunning: v })),
@@ -171,11 +177,14 @@ export function useStoreActions() {
   const ctx = useContext(StoreContext);
   if (!ctx) {
     const noop = async () => {};
+    const noopBulk = async (): Promise<BulkClientResponse> => ({ results: [] });
     return {
       toggleInbound: noop, addInbound: noop, updateInbound: noop,
       removeInbound: noop, cloneInbound: noop, addClient: noop,
       updateClient: noop, removeClient: noop, resetClientTraffic: noop,
       setClientStatus: noop, setPaused: () => {}, appendLog: () => {},
+      bulkDeleteClients: noopBulk, bulkResetClientTraffic: noopBulk,
+      bulkSetClientStatus: noopBulk,
       setCoreRunning: () => {}, startCore: noop, stopCore: noop,
     } as StoreActions;
   }

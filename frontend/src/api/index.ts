@@ -3,8 +3,8 @@ export type { LoginRequest, LoginResponse, LoginTOTPRequest, LoginTOTPResponse, 
 export { login, loginTOTP, loginRecovery, getMe, logout, setupTOTP, confirmTOTP, disableTOTP, changePassword } from "./auth";
 export type { InboundDTO, InboundSettings, InboundCreateRequest, InboundUpdateRequest } from "./inbounds";
 export { listInbounds, getInbound, createInbound, updateInbound, deleteInbound, toggleInbound, cloneInbound } from "./inbounds";
-export type { ClientDTO, ClientCreateRequest, ClientUpdateRequest, ClientSetStatusRequest, ClientLinksDTO } from "./clients";
-export { listClients, getClient, createClient, updateClient, deleteClient, resetClientTraffic, setClientStatus, getClientLinks } from "./clients";
+export type { ClientDTO, ClientCreateRequest, ClientUpdateRequest, ClientSetStatusRequest, ClientLinksDTO, BulkClientRequest, BulkClientStatusRequest, BulkClientResult, BulkClientResponse } from "./clients";
+export { listClients, getClient, createClient, updateClient, deleteClient, resetClientTraffic, setClientStatus, bulkDeleteClients, bulkResetClientTraffic, bulkSetClientStatus, getClientLinks } from "./clients";
 export type { CoreStatusDTO, CoreLogsResponse } from "./core";
 export { getCoreStatus, startCore, stopCore, restartCore, reloadCore, getCoreVersion, getCoreConfig, getCoreLogs } from "./core";
 export type { MetricsDTO, TrafficPoint, TrafficHistoryDTO } from "./dashboard";
