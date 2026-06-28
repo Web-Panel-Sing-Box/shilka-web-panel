@@ -78,13 +78,22 @@ func (g *Generator) Render(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("list clients: %w", err)
 	}
 
+	// A local client may bind to several inbounds (SIN-11): emit it into every
+	// inbound block it belongs to. Fall back to the legacy single InboundID when
+	// the join-table set is empty (e.g. remote clients).
 	byInbound := make(map[int64][]domain.Client)
 	for i := range clients {
 		c := clients[i]
 		if c.Status != domain.ClientStatusActive {
 			continue
 		}
-		byInbound[c.InboundID] = append(byInbound[c.InboundID], c)
+		binds := c.InboundIDs
+		if len(binds) == 0 {
+			binds = []int64{c.InboundID}
+		}
+		for _, ibID := range binds {
+			byInbound[ibID] = append(byInbound[ibID], c)
+		}
 	}
 
 	var (
@@ -93,6 +102,10 @@ func (g *Generator) Render(ctx context.Context) ([]byte, error) {
 		perUserOutbounds []sbOutbound
 		perUserRules     []sbRouteRule
 	)
+	// seenUser de-dupes per-user stats/outbounds/rules: a multi-inbound client
+	// appears in several inbound member lists but must emit its direct outbound
+	// and route rule exactly once.
+	seenUser := make(map[int64]bool)
 	for i := range inbounds {
 		ib := inbounds[i]
 		members := byInbound[ib.ID]
@@ -102,6 +115,10 @@ func (g *Generator) Render(ctx context.Context) ([]byte, error) {
 		}
 		built = append(built, entry)
 		for _, c := range members {
+			if seenUser[c.ID] {
+				continue
+			}
+			seenUser[c.ID] = true
 			statsUsers = append(statsUsers, c.Name)
 			tag := ClientOutboundTag(c.ID)
 			perUserOutbounds = append(perUserOutbounds, sbOutbound{Type: "direct", Tag: tag})

@@ -10,6 +10,7 @@ export type ClientDTO = {
   name: string;
   uuid: string;
   inboundId: string;
+  inboundIds: string[];
   usedDown: number;
   usedUp: number;
   totalQuota: number;
@@ -25,7 +26,7 @@ export type ClientDTO = {
 export type ClientCreateRequest = {
   nodeId?: string;
   name: string;
-  inboundId: string;
+  inboundIds: string[];
   totalQuota?: number;
   expiry?: string;
   startAfterFirstUse?: boolean;
@@ -34,7 +35,7 @@ export type ClientCreateRequest = {
 export type ClientUpdateRequest = {
   nodeId?: string;
   name?: string;
-  inboundId?: string;
+  inboundIds?: string[];
   totalQuota?: number;
   expiry?: string;
   status?: ClientStatus;
@@ -45,16 +46,24 @@ export type ClientSetStatusRequest = {
   status: ClientStatus;
 };
 
+export type ClientLink = {
+  label: string;
+  url: string;
+  protocol: string;
+};
+
 export type ClientLinksDTO = {
   link: string;
   shareLink: string;
   subscription: string;
+  links: ClientLink[];
 };
 
 type ClientLinksResponse = {
   link?: string;
   shareLink?: string;
   subscription: string;
+  links?: ClientLink[];
 };
 
 export type MessageResponse = {
@@ -99,5 +108,6 @@ export async function getClientLinks(id: string): Promise<ClientLinksDTO> {
     link: links.link ?? shareLink,
     shareLink,
     subscription: links.subscription,
+    links: links.links ?? [],
   };
 }

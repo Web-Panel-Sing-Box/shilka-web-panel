@@ -16,8 +16,10 @@ export function useClientFilter(
   return useMemo(() => {
     const q = filter.query.trim().toLowerCase();
     return clients.filter((c) => {
-      if (filter.inboundId !== "all" && c.inboundId !== filter.inboundId)
-        return false;
+      if (filter.inboundId !== "all") {
+        const ids = c.inboundIds?.length ? c.inboundIds : [c.inboundId];
+        if (!ids.includes(filter.inboundId)) return false;
+      }
       if (filter.nodeId === "local" && c.nodeId) return false;
       if (filter.nodeId !== "all" && filter.nodeId !== "local" && c.nodeId !== filter.nodeId)
         return false;

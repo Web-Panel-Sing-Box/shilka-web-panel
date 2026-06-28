@@ -49,15 +49,16 @@ type clientDTO struct {
 	ID                 string `json:"id"`
 	NodeID             string `json:"nodeId,omitempty"`
 	RemoteID           string `json:"remoteId,omitempty"`
-	Name               string `json:"name"`
-	UUID               string `json:"uuid"`
-	InboundID          string `json:"inboundId"`
-	UsedDown           int64  `json:"usedDown"`
-	UsedUp             int64  `json:"usedUp"`
-	TotalQuota         int64  `json:"totalQuota"`
-	Expiry             string `json:"expiry"`
-	Status             string `json:"status"`
-	Subscription       string `json:"subscription"`
+	Name               string   `json:"name"`
+	UUID               string   `json:"uuid"`
+	InboundID          string   `json:"inboundId"`
+	InboundIDs         []string `json:"inboundIds"`
+	UsedDown           int64    `json:"usedDown"`
+	UsedUp             int64    `json:"usedUp"`
+	TotalQuota         int64    `json:"totalQuota"`
+	Expiry             string   `json:"expiry"`
+	Status             string   `json:"status"`
+	Subscription       string   `json:"subscription"`
 	SubToken           string `json:"subToken,omitempty"`
 	Enabled            bool   `json:"enabled"`
 	StartAfterFirstUse bool   `json:"startAfterFirstUse"`
@@ -71,6 +72,7 @@ func (h *ClientHandler) toDTO(c *domain.Client) clientDTO {
 		Name:               c.Name,
 		UUID:               c.UUID,
 		InboundID:          strconv.FormatInt(c.InboundID, 10),
+		InboundIDs:         formatInboundIDs(c),
 		UsedDown:           c.UsedDown,
 		UsedUp:             c.UsedUp,
 		TotalQuota:         c.TotalQuota,
@@ -120,12 +122,13 @@ func (h *ClientHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type createClientRequest struct {
-	NodeID             string `json:"nodeId,omitempty"`
-	Name               string `json:"name"`
-	InboundID          string `json:"inboundId"`
-	TotalQuota         int64  `json:"totalQuota"`
-	Expiry             string `json:"expiry"`
-	StartAfterFirstUse bool   `json:"startAfterFirstUse"`
+	NodeID             string   `json:"nodeId,omitempty"`
+	Name               string   `json:"name"`
+	InboundID          string   `json:"inboundId"`
+	InboundIDs         []string `json:"inboundIds,omitempty"`
+	TotalQuota         int64    `json:"totalQuota"`
+	Expiry             string   `json:"expiry"`
+	StartAfterFirstUse bool     `json:"startAfterFirstUse"`
 }
 
 // Create godoc
@@ -197,9 +200,8 @@ func (h *ClientHandler) createRemote(w http.ResponseWriter, r *http.Request, nod
 }
 
 func (req createClientRequest) toInput(w http.ResponseWriter) (svcclient.CreateInput, bool) {
-	inboundID, err := strconv.ParseInt(req.InboundID, 10, 64)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid inboundId"})
+	ids, ok := parseInboundIDs(w, req.InboundIDs, req.InboundID)
+	if !ok {
 		return svcclient.CreateInput{}, false
 	}
 	expiry, err := parseTimePtr(req.Expiry)
@@ -209,7 +211,8 @@ func (req createClientRequest) toInput(w http.ResponseWriter) (svcclient.CreateI
 	}
 	return svcclient.CreateInput{
 		Name:               req.Name,
-		InboundID:          inboundID,
+		InboundID:          ids[0],
+		InboundIDs:         ids,
 		TotalQuota:         req.TotalQuota,
 		Expiry:             expiry,
 		StartAfterFirstUse: req.StartAfterFirstUse,
@@ -240,13 +243,14 @@ func (h *ClientHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateClientRequest struct {
-	NodeID             *string `json:"nodeId,omitempty"`
-	Name               *string `json:"name"`
-	InboundID          *string `json:"inboundId"`
-	TotalQuota         *int64  `json:"totalQuota"`
-	Expiry             *string `json:"expiry"`
-	Status             *string `json:"status"`
-	StartAfterFirstUse *bool   `json:"startAfterFirstUse"`
+	NodeID             *string   `json:"nodeId,omitempty"`
+	Name               *string   `json:"name"`
+	InboundID          *string   `json:"inboundId"`
+	InboundIDs         *[]string `json:"inboundIds"`
+	TotalQuota         *int64    `json:"totalQuota"`
+	Expiry             *string   `json:"expiry"`
+	Status             *string   `json:"status"`
+	StartAfterFirstUse *bool     `json:"startAfterFirstUse"`
 }
 
 // Update godoc
@@ -313,7 +317,13 @@ func (req updateClientRequest) toInput(w http.ResponseWriter) (svcclient.UpdateI
 		TotalQuota:         req.TotalQuota,
 		StartAfterFirstUse: req.StartAfterFirstUse,
 	}
-	if req.InboundID != nil {
+	if req.InboundIDs != nil {
+		ids, ok := parseInboundIDs(w, *req.InboundIDs, "")
+		if !ok {
+			return svcclient.UpdateInput{}, false
+		}
+		in.InboundIDs = &ids
+	} else if req.InboundID != nil {
 		inboundID, err := strconv.ParseInt(*req.InboundID, 10, 64)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid inboundId"})
@@ -471,4 +481,42 @@ const onlineThreshold = time.Second * 5
 
 func isOnline(lastUsedAt *time.Time) bool {
 	return lastUsedAt != nil && time.Since(*lastUsedAt) < onlineThreshold
+}
+
+// parseInboundIDs resolves the inbound id set from a request, accepting the new
+// inboundIds array and falling back to the legacy single inboundId. At least one
+// id is required.
+func parseInboundIDs(w http.ResponseWriter, ids []string, legacy string) ([]int64, bool) {
+	raw := ids
+	if len(raw) == 0 && legacy != "" {
+		raw = []string{legacy}
+	}
+	out := make([]int64, 0, len(raw))
+	for _, s := range raw {
+		id, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid inboundId"})
+			return nil, false
+		}
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "at least one inbound is required"})
+		return nil, false
+	}
+	return out, true
+}
+
+// formatInboundIDs renders the client's inbound set as strings, falling back to
+// the primary InboundID when the set is empty.
+func formatInboundIDs(c *domain.Client) []string {
+	ids := c.InboundIDs
+	if len(ids) == 0 {
+		ids = []int64{c.InboundID}
+	}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, strconv.FormatInt(id, 10))
+	}
+	return out
 }

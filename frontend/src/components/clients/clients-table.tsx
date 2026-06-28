@@ -46,14 +46,15 @@ export function ClientsTable({ filter, onSelect }: Props) {
               <div className="px-5 py-10 text-center text-sm text-ink-tertiary">{t("clients.noMatch")}</div>
             ) : null}
             {rows.map((c) => {
-              const inbound = inboundMap.get(c.inboundId);
+              const ids = c.inboundIds?.length ? c.inboundIds : [c.inboundId];
+              const inboundLabel = ids.map((id) => inboundMap.get(id)?.remark ?? id).join(", ") || "-";
               const total = c.usedDown + c.usedUp;
               const pct = c.totalQuota > 0 ? (total / c.totalQuota) * 100 : 0;
               return (
                 <Row
                   key={c.id}
                   client={c}
-                  inboundLabel={inbound?.remark ?? "-"}
+                  inboundLabel={inboundLabel}
                   pct={pct}
                   total={total}
                   onSelect={onSelect}

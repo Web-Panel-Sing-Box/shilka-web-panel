@@ -58,18 +58,25 @@ func (s *Service) notify() {
 }
 
 // CreateInput carries the fields the UI supplies when provisioning a client.
+// InboundIDs is the multi-binding set (SIN-11); InboundID is the legacy single
+// binding kept for backward compatibility. When InboundIDs is empty, InboundID
+// is used as the sole binding.
 type CreateInput struct {
 	Name               string
 	InboundID          int64
+	InboundIDs         []int64
 	TotalQuota         int64
 	Expiry             *time.Time
 	StartAfterFirstUse bool
 }
 
 // UpdateInput carries optional field updates; nil fields are left unchanged.
+// InboundIDs (when non-nil) replaces the client's whole binding set; InboundID
+// is the legacy single-binding alias.
 type UpdateInput struct {
 	Name               *string
 	InboundID          *int64
+	InboundIDs         *[]int64
 	TotalQuota         *int64
 	Expiry             *time.Time
 	Status             *domain.ClientStatus
@@ -87,16 +94,43 @@ func (s *Service) Get(ctx context.Context, id int64) (*domain.Client, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
+// resolveInboundSet validates that every referenced inbound exists and is local
+// (not on a remote node), returning the order-preserving deduped set. The first
+// element becomes the client's primary binding.
+func (s *Service) resolveInboundSet(ctx context.Context, ids []int64) ([]int64, error) {
+	seen := make(map[int64]bool, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			continue
+		}
+		ib, err := s.inbounds.GetByID(ctx, id)
+		if err != nil {
+			return nil, ErrInboundMissing
+		}
+		if ib.NodeID != nil {
+			return nil, fmt.Errorf("%w: inbound belongs to a remote node", ErrValidation)
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%w: at least one inbound is required", ErrValidation)
+	}
+	return out, nil
+}
+
 func (s *Service) Create(ctx context.Context, in CreateInput) (*domain.Client, error) {
 	if in.Name == "" {
 		return nil, fmt.Errorf("%w: name is required", ErrValidation)
 	}
-	ib, err := s.inbounds.GetByID(ctx, in.InboundID)
-	if err != nil {
-		return nil, ErrInboundMissing
+	candidate := in.InboundIDs
+	if len(candidate) == 0 {
+		candidate = []int64{in.InboundID}
 	}
-	if ib.NodeID != nil {
-		return nil, fmt.Errorf("%w: inbound belongs to a remote node", ErrValidation)
+	set, err := s.resolveInboundSet(ctx, candidate)
+	if err != nil {
+		return nil, err
 	}
 
 	uuid, err := keys.GenerateUUID()
@@ -113,7 +147,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*domain.Client, e
 	}
 
 	c := &domain.Client{
-		InboundID:          in.InboundID,
+		InboundID:          set[0],
+		InboundIDs:         set,
 		Name:               in.Name,
 		UUID:               uuid,
 		Password:           password,
@@ -146,15 +181,19 @@ func (s *Service) Update(ctx context.Context, id int64, in UpdateInput) (*domain
 		}
 		c.Name = *in.Name
 	}
-	if in.InboundID != nil {
-		ib, err := s.inbounds.GetByID(ctx, *in.InboundID)
+	if in.InboundIDs != nil || in.InboundID != nil {
+		var candidate []int64
+		if in.InboundIDs != nil {
+			candidate = *in.InboundIDs
+		} else {
+			candidate = []int64{*in.InboundID}
+		}
+		set, err := s.resolveInboundSet(ctx, candidate)
 		if err != nil {
-			return nil, ErrInboundMissing
+			return nil, err
 		}
-		if ib.NodeID != nil {
-			return nil, fmt.Errorf("%w: inbound belongs to a remote node", ErrValidation)
-		}
-		c.InboundID = *in.InboundID
+		c.InboundID = set[0]
+		c.InboundIDs = set
 	}
 	if in.TotalQuota != nil {
 		c.TotalQuota = *in.TotalQuota

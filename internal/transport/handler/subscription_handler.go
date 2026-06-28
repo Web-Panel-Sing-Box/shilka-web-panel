@@ -101,14 +101,14 @@ func (h *SubscriptionHandler) Serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inbound, err := h.inbounds.GetByID(r.Context(), client.InboundID)
-	if err != nil {
+	inbounds := h.resolveInbounds(r.Context(), client)
+	if len(inbounds) == 0 {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 
 	format := r.URL.Query().Get("format")
-	result, err := sublink.Render(format, inbound, client, h.resolveHost(r.Context(), r))
+	result, err := sublink.RenderMulti(format, inbounds, client, h.resolveHost(r.Context(), r))
 	if err != nil {
 		if errors.Is(err, sublink.ErrNaiveJSONRequiresTrustedTLS) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -166,12 +166,13 @@ func (h *SubscriptionHandler) Meta(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "subscription disabled", http.StatusForbidden)
 		return
 	}
-	inbound, err := h.inbounds.GetByID(r.Context(), client.InboundID)
-	if err != nil {
+	inbounds := h.resolveInbounds(r.Context(), client)
+	if len(inbounds) == 0 {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	link := sublink.BuildLink(inbound, client, h.resolveHost(r.Context(), r))
+	host := h.resolveHost(r.Context(), r)
+	links := buildLinkDTOs(inbounds, client, host)
 	sub := "/sub/" + client.SubToken
 	if h.subBaseURL != "" {
 		sub = h.subBaseURL + "/sub/" + client.SubToken
@@ -187,16 +188,15 @@ func (h *SubscriptionHandler) Meta(w http.ResponseWriter, r *http.Request) {
 		Expiry:          expiry,
 		Online:          isOnline(client.LastUsedAt),
 		SubscriptionURL: sub,
-		Links: []subscriptionLinkDTO{
-			{Label: inbound.Remark, URL: link, Protocol: string(inbound.Protocol)},
-		},
+		Links:           links,
 	})
 }
 
 type clientLinksDTO struct {
-	Link         string `json:"link"`
-	ShareLink    string `json:"shareLink"`
-	Subscription string `json:"subscription"`
+	Link         string                `json:"link"`
+	ShareLink    string                `json:"shareLink"`
+	Subscription string                `json:"subscription"`
+	Links        []subscriptionLinkDTO `json:"links"`
 }
 
 // Links godoc
@@ -219,21 +219,58 @@ func (h *SubscriptionHandler) Links(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, h.log, "client links", err)
 		return
 	}
-	inbound, err := h.inbounds.GetByID(r.Context(), client.InboundID)
-	if err != nil {
-		writeServiceError(w, h.log, "client links inbound", err)
+	inbounds := h.resolveInbounds(r.Context(), client)
+	if len(inbounds) == 0 {
+		writeServiceError(w, h.log, "client links inbound", repo.ErrNotFound)
 		return
 	}
 	sub := "/sub/" + client.SubToken
 	if h.subBaseURL != "" {
 		sub = h.subBaseURL + "/sub/" + client.SubToken
 	}
-	link := sublink.BuildLink(inbound, client, h.resolveHost(r.Context(), r))
+	links := buildLinkDTOs(inbounds, client, h.resolveHost(r.Context(), r))
+	first := ""
+	if len(links) > 0 {
+		first = links[0].URL
+	}
 	writeJSON(w, http.StatusOK, clientLinksDTO{
-		Link:         link,
-		ShareLink:    link,
+		Link:         first,
+		ShareLink:    first,
 		Subscription: sub,
+		Links:        links,
 	})
+}
+
+// resolveInbounds returns every inbound the client is bound to, in order,
+// skipping any that no longer exist. Falls back to the legacy primary InboundID.
+func (h *SubscriptionHandler) resolveInbounds(ctx context.Context, client *domain.Client) []*domain.Inbound {
+	ids := client.InboundIDs
+	if len(ids) == 0 {
+		ids = []int64{client.InboundID}
+	}
+	out := make([]*domain.Inbound, 0, len(ids))
+	for _, id := range ids {
+		ib, err := h.inbounds.GetByID(ctx, id)
+		if err != nil {
+			continue
+		}
+		out = append(out, ib)
+	}
+	return out
+}
+
+// buildLinkDTOs builds one share-link DTO per inbound, dropping inbounds whose
+// protocol yields no link.
+func buildLinkDTOs(inbounds []*domain.Inbound, client *domain.Client, host string) []subscriptionLinkDTO {
+	links := make([]subscriptionLinkDTO, 0, len(inbounds))
+	for _, ib := range inbounds {
+		url := sublink.BuildLink(ib, client, host)
+		if url == "" {
+			continue
+		}
+		links = append(links, subscriptionLinkDTO{Label: ib.Remark, URL: url, Protocol: string(ib.Protocol)})
+	}
+	return links
 }
 
 func (h *SubscriptionHandler) resolveHost(ctx context.Context, r *http.Request) string {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"sing-box-web-panel/internal/domain"
@@ -21,8 +22,18 @@ const clientColumns = `id, inbound_id, name, uuid, password, used_up, used_down,
 	expiry, status, sub_token, start_after_first_use, enabled, first_used_at, last_used_at, node_id, remote_id,
 	last_synced_at, created_at, updated_at`
 
-func (r *ClientRepo) Create(ctx context.Context, c *domain.Client) error {
-	result, err := r.db.ExecContext(ctx,
+func (r *ClientRepo) Create(ctx context.Context, c *domain.Client) (err error) {
+	inbounds := normalizeInboundSet(c.InboundIDs, c.InboundID)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin create client tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	result, err := tx.ExecContext(ctx,
 		`INSERT INTO clients (inbound_id, name, uuid, password, total_quota, expiry,
 		                      status, sub_token, start_after_first_use, enabled, node_id, remote_id, last_synced_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -40,22 +51,29 @@ func (r *ClientRepo) Create(ctx context.Context, c *domain.Client) error {
 		return fmt.Errorf("get client id: %w", err)
 	}
 	c.ID = id
+	if err = replaceClientInbounds(ctx, tx, id, inbounds); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit create client: %w", err)
+	}
+	c.InboundIDs = inbounds
 	return nil
 }
 
 func (r *ClientRepo) GetByID(ctx context.Context, id int64) (*domain.Client, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT `+clientColumns+` FROM clients WHERE id = ?`, id)
-	return scanClient(row)
+	return r.scanWithInbounds(ctx, row)
 }
 
 func (r *ClientRepo) GetByRemote(ctx context.Context, nodeID int64, remoteID string) (*domain.Client, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT `+clientColumns+` FROM clients WHERE node_id = ? AND remote_id = ?`, nodeID, remoteID)
-	return scanClient(row)
+	return r.scanWithInbounds(ctx, row)
 }
 
 func (r *ClientRepo) GetBySubToken(ctx context.Context, token string) (*domain.Client, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT `+clientColumns+` FROM clients WHERE sub_token = ?`, token)
-	return scanClient(row)
+	return r.scanWithInbounds(ctx, row)
 }
 
 func (r *ClientRepo) List(ctx context.Context) ([]domain.Client, error) {
@@ -87,11 +105,27 @@ func (r *ClientRepo) query(ctx context.Context, q string, args ...any) ([]domain
 		}
 		out = append(out, *c)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.loadInboundIDsInto(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
-func (r *ClientRepo) Update(ctx context.Context, c *domain.Client) error {
-	_, err := r.db.ExecContext(ctx,
+func (r *ClientRepo) Update(ctx context.Context, c *domain.Client) (err error) {
+	inbounds := normalizeInboundSet(c.InboundIDs, c.InboundID)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin update client tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	_, err = tx.ExecContext(ctx,
 		`UPDATE clients SET inbound_id = ?, name = ?, uuid = ?, password = ?, total_quota = ?,
 		                    expiry = ?, status = ?, start_after_first_use = ?, enabled = ?,
 		                    node_id = ?, remote_id = ?, last_synced_at = ?,
@@ -106,6 +140,13 @@ func (r *ClientRepo) Update(ctx context.Context, c *domain.Client) error {
 		}
 		return fmt.Errorf("update client: %w", err)
 	}
+	if err = replaceClientInbounds(ctx, tx, c.ID, inbounds); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit update client: %w", err)
+	}
+	c.InboundIDs = inbounds
 	return nil
 }
 
@@ -290,4 +331,124 @@ func scanClient(s rowScanner) (*domain.Client, error) {
 	c.NodeID = ptrFromNullInt64(nodeID)
 	c.LastSyncedAt = ptrFromNullTime(lastSyncedAt)
 	return &c, nil
+}
+
+// scanWithInbounds scans a single client row and hydrates its InboundIDs from
+// the client_inbounds join table.
+func (r *ClientRepo) scanWithInbounds(ctx context.Context, s rowScanner) (*domain.Client, error) {
+	c, err := scanClient(s)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.fillInbounds(ctx, c); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// fillInbounds populates c.InboundIDs from the join table, falling back to the
+// primary inbound_id when no join rows exist (e.g. remote clients).
+func (r *ClientRepo) fillInbounds(ctx context.Context, c *domain.Client) error {
+	if c == nil {
+		return nil
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT inbound_id FROM client_inbounds WHERE client_id = ? ORDER BY inbound_id`, c.ID)
+	if err != nil {
+		return fmt.Errorf("load client inbounds: %w", err)
+	}
+	defer rows.Close()
+	var set []int64
+	for rows.Next() {
+		var iid int64
+		if err := rows.Scan(&iid); err != nil {
+			return fmt.Errorf("scan client inbound: %w", err)
+		}
+		set = append(set, iid)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	c.InboundIDs = fallbackInboundSet(set, c.InboundID)
+	return nil
+}
+
+// loadInboundIDsInto hydrates InboundIDs for a batch of clients in one query to
+// avoid N+1 lookups.
+func (r *ClientRepo) loadInboundIDsInto(ctx context.Context, clients []domain.Client) error {
+	if len(clients) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(clients))
+	args := make([]any, len(clients))
+	for i := range clients {
+		placeholders[i] = "?"
+		args[i] = clients[i].ID
+	}
+	q := `SELECT client_id, inbound_id FROM client_inbounds WHERE client_id IN (` +
+		strings.Join(placeholders, ",") + `) ORDER BY inbound_id`
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return fmt.Errorf("load client inbounds: %w", err)
+	}
+	defer rows.Close()
+	byClient := make(map[int64][]int64, len(clients))
+	for rows.Next() {
+		var cid, iid int64
+		if err := rows.Scan(&cid, &iid); err != nil {
+			return fmt.Errorf("scan client inbound: %w", err)
+		}
+		byClient[cid] = append(byClient[cid], iid)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range clients {
+		clients[i].InboundIDs = fallbackInboundSet(byClient[clients[i].ID], clients[i].InboundID)
+	}
+	return nil
+}
+
+// replaceClientInbounds rewrites a client's join rows to exactly inboundIDs.
+func replaceClientInbounds(ctx context.Context, tx *sql.Tx, clientID int64, inboundIDs []int64) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM client_inbounds WHERE client_id = ?`, clientID); err != nil {
+		return fmt.Errorf("clear client inbounds: %w", err)
+	}
+	for _, iid := range inboundIDs {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT OR IGNORE INTO client_inbounds (client_id, inbound_id) VALUES (?, ?)`,
+			clientID, iid); err != nil {
+			return fmt.Errorf("insert client inbound: %w", err)
+		}
+	}
+	return nil
+}
+
+// normalizeInboundSet dedupes ids (order-preserving) and falls back to the
+// primary single binding when the set is empty.
+func normalizeInboundSet(ids []int64, primary int64) []int64 {
+	seen := make(map[int64]bool, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	if len(out) == 0 && primary != 0 {
+		out = append(out, primary)
+	}
+	return out
+}
+
+// fallbackInboundSet returns set, or [primary] when set is empty.
+func fallbackInboundSet(set []int64, primary int64) []int64 {
+	if len(set) > 0 {
+		return set
+	}
+	if primary != 0 {
+		return []int64{primary}
+	}
+	return nil
 }

@@ -267,6 +267,80 @@ func TestBuildClientConfigNaiveTrustedTLSOmitsInsecure(t *testing.T) {
 	}
 }
 
+func TestRenderMultiPlainJoinsAllLinks(t *testing.T) {
+	ib1 := &domain.Inbound{
+		ID: 1, Remark: "edge", Protocol: domain.ProtocolVLESS, Port: 44321,
+		Transmission: domain.TransmissionTCP, TLS: domain.TLSModeReality,
+		SNI: "www.cloudflare.com", Dest: "www.cloudflare.com:443",
+		Settings: domain.InboundSettings{RealityPublicKey: "PUB", RealityShortID: "abcd1234"},
+	}
+	ib2 := &domain.Inbound{
+		ID: 2, Remark: "hy2", Protocol: domain.ProtocolHysteria2, Port: 51005,
+		TLS: domain.TLSModeTLS, SNI: "panel.example",
+	}
+	c := &domain.Client{Name: "multi", UUID: "11111111-1111-4111-8111-111111111111", Password: "pw"}
+
+	res, err := sublink.RenderMulti(sublink.FormatPlain, []*domain.Inbound{ib1, ib2}, c, "203.0.113.10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(res.Body)
+	if !strings.Contains(body, "vless://") || !strings.Contains(body, "hysteria2://") {
+		t.Fatalf("plain multi should contain both protocol links, got: %s", body)
+	}
+	if lines := strings.Split(strings.TrimSpace(body), "\n"); len(lines) != 2 {
+		t.Fatalf("want 2 links, got %d: %s", len(lines), body)
+	}
+}
+
+func TestRenderMultiJSONBuildsSelector(t *testing.T) {
+	ib1 := &domain.Inbound{
+		ID: 1, Protocol: domain.ProtocolVLESS, Port: 443,
+		Transmission: domain.TransmissionTCP, TLS: domain.TLSModeReality,
+		SNI: "www.cloudflare.com", Dest: "www.cloudflare.com:443",
+		Settings: domain.InboundSettings{RealityPublicKey: "PUB", RealityShortID: "abcd1234"},
+	}
+	ib2 := &domain.Inbound{
+		ID: 2, Protocol: domain.ProtocolHysteria2, Port: 51005,
+		TLS: domain.TLSModeTLS, SNI: "panel.example",
+		Settings: domain.InboundSettings{ACMEDomain: "panel.example"},
+	}
+	c := &domain.Client{Name: "multi", UUID: "u", Password: "pw"}
+
+	res, err := sublink.RenderMulti(sublink.FormatJSON, []*domain.Inbound{ib1, ib2}, c, "panel.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Outbounds []map[string]any `json:"outbounds"`
+		Route     map[string]any   `json:"route"`
+	}
+	if err := json.Unmarshal(res.Body, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var selector map[string]any
+	tags := map[string]bool{}
+	for _, ob := range cfg.Outbounds {
+		tags[ob["tag"].(string)] = true
+		if ob["tag"] == "proxy" && ob["type"] == "selector" {
+			selector = ob
+		}
+	}
+	if selector == nil {
+		t.Fatalf("missing proxy selector: %s", res.Body)
+	}
+	if sel := selector["outbounds"].([]any); len(sel) != 2 {
+		t.Fatalf("selector should reference 2 outbounds, got %v", sel)
+	}
+	if !tags["proxy-1"] || !tags["proxy-2"] || !tags["direct"] {
+		t.Fatalf("missing expected outbound tags: %v", tags)
+	}
+	if cfg.Route["final"] != "proxy" {
+		t.Fatalf("route.final = %v, want proxy", cfg.Route["final"])
+	}
+}
+
 func queryValue(t *testing.T, rawURL, key string) string {
 	t.Helper()
 	u, err := url.Parse(rawURL)

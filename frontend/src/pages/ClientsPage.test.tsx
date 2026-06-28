@@ -10,8 +10,8 @@ const INBOUNDS: InboundDTO[] = [
 ];
 
 const CLIENTS: ClientDTO[] = [
-  { id: "1", name: "alex_kim", uuid: "a", inboundId: "1", usedDown: 0, usedUp: 0, totalQuota: 0, expiry: "", status: "active", subscription: "", startAfterFirstUse: false, online: false },
-  { id: "2", name: "miyu", uuid: "b", inboundId: "4", usedDown: 0, usedUp: 0, totalQuota: 0, expiry: "", status: "active", subscription: "", startAfterFirstUse: false, online: false },
+  { id: "1", name: "alex_kim", uuid: "a", inboundId: "1", inboundIds: ["1"], usedDown: 0, usedUp: 0, totalQuota: 0, expiry: "", status: "active", subscription: "", startAfterFirstUse: false, online: false },
+  { id: "2", name: "miyu", uuid: "b", inboundId: "4", inboundIds: ["4"], usedDown: 0, usedUp: 0, totalQuota: 0, expiry: "", status: "active", subscription: "", startAfterFirstUse: false, online: false },
 ];
 
 test("initializes the inbound filter from the URL", async () => {
