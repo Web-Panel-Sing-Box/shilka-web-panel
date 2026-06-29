@@ -1,6 +1,31 @@
 basePath: /api
 definitions:
-  handler.changePasswordRequest:
+  internal_transport_handler.bulkClientRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+    type: object
+  internal_transport_handler.bulkClientResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/internal_transport_handler.bulkClientResultDTO'
+        type: array
+    type: object
+  internal_transport_handler.bulkClientResultDTO:
+    properties:
+      error:
+        type: string
+      id:
+        type: string
+      ok:
+        type: boolean
+    type: object
+  internal_transport_handler.changePasswordRequest:
     properties:
       current_password:
         example: oldpass
@@ -9,7 +34,7 @@ definitions:
         example: newpass
         type: string
     type: object
-  handler.clientDTO:
+  internal_transport_handler.clientDTO:
     properties:
       enabled:
         type: boolean
@@ -19,6 +44,10 @@ definitions:
         type: string
       inboundId:
         type: string
+      inboundIds:
+        items:
+          type: string
+        type: array
       name:
         type: string
       nodeId:
@@ -44,22 +73,26 @@ definitions:
       uuid:
         type: string
     type: object
-  handler.clientLinksDTO:
+  internal_transport_handler.clientLinksDTO:
     properties:
       link:
         type: string
+      links:
+        items:
+          $ref: '#/definitions/internal_transport_handler.subscriptionLinkDTO'
+        type: array
       shareLink:
         type: string
       subscription:
         type: string
     type: object
-  handler.confirmTOTPRequest:
+  internal_transport_handler.confirmTOTPRequest:
     properties:
       code:
         example: "123456"
         type: string
     type: object
-  handler.coreLogsResponse:
+  internal_transport_handler.coreLogsResponse:
     properties:
       hasMore:
         type: boolean
@@ -70,7 +103,7 @@ definitions:
       total:
         type: integer
     type: object
-  handler.coreStatusDTO:
+  internal_transport_handler.coreStatusDTO:
     properties:
       lastError:
         type: string
@@ -83,12 +116,16 @@ definitions:
       version:
         type: string
     type: object
-  handler.createClientRequest:
+  internal_transport_handler.createClientRequest:
     properties:
       expiry:
         type: string
       inboundId:
         type: string
+      inboundIds:
+        items:
+          type: string
+        type: array
       name:
         type: string
       nodeId:
@@ -98,13 +135,13 @@ definitions:
       totalQuota:
         type: integer
     type: object
-  handler.disableTOTPRequest:
+  internal_transport_handler.disableTOTPRequest:
     properties:
       code:
         example: "123456"
         type: string
     type: object
-  handler.diskSegmentDTO:
+  internal_transport_handler.diskSegmentDTO:
     properties:
       color:
         type: string
@@ -115,7 +152,7 @@ definitions:
       usedBytes:
         type: integer
     type: object
-  handler.frontendLogRequest:
+  internal_transport_handler.frontendLogRequest:
     properties:
       fields:
         additionalProperties:
@@ -126,7 +163,7 @@ definitions:
       message:
         type: string
     type: object
-  handler.inboundDTO:
+  internal_transport_handler.inboundDTO:
     properties:
       clientCount:
         type: integer
@@ -149,7 +186,7 @@ definitions:
       remoteId:
         type: string
       settings:
-        $ref: '#/definitions/handler.inboundSettingsDTO'
+        $ref: '#/definitions/internal_transport_handler.inboundSettingsDTO'
       sni:
         type: string
       tls:
@@ -159,7 +196,7 @@ definitions:
       updatedAt:
         type: string
     type: object
-  handler.inboundRequest:
+  internal_transport_handler.inboundRequest:
     properties:
       acmeDomain:
         type: string
@@ -217,7 +254,7 @@ definitions:
       transmission:
         type: string
     type: object
-  handler.inboundSettingsDTO:
+  internal_transport_handler.inboundSettingsDTO:
     properties:
       acmeDomain:
         description: |-
@@ -273,7 +310,7 @@ definitions:
       wsPath:
         type: string
     type: object
-  handler.logEntryDTO:
+  internal_transport_handler.logEntryDTO:
     properties:
       fields:
         additionalProperties:
@@ -292,7 +329,7 @@ definitions:
       t:
         type: integer
     type: object
-  handler.loginRecoveryRequest:
+  internal_transport_handler.loginRecoveryRequest:
     properties:
       code:
         example: 1234-5678
@@ -301,7 +338,7 @@ definitions:
         example: admin
         type: string
     type: object
-  handler.loginRequest:
+  internal_transport_handler.loginRequest:
     properties:
       password:
         example: admin
@@ -310,7 +347,7 @@ definitions:
         example: admin
         type: string
     type: object
-  handler.loginTOTPRequest:
+  internal_transport_handler.loginTOTPRequest:
     properties:
       code:
         example: "123456"
@@ -319,7 +356,7 @@ definitions:
         example: eyJhbG...
         type: string
     type: object
-  handler.meResponse:
+  internal_transport_handler.meResponse:
     properties:
       created_at:
         type: string
@@ -332,7 +369,7 @@ definitions:
       username:
         type: string
     type: object
-  handler.metricsDTO:
+  internal_transport_handler.metricsDTO:
     properties:
       coreRunning:
         type: boolean
@@ -342,7 +379,7 @@ definitions:
         type: number
       diskSegments:
         items:
-          $ref: '#/definitions/handler.diskSegmentDTO'
+          $ref: '#/definitions/internal_transport_handler.diskSegmentDTO'
         type: array
       downloadBps:
         type: integer
@@ -377,7 +414,7 @@ definitions:
       uptimeSeconds:
         type: integer
     type: object
-  handler.panelVersionDTO:
+  internal_transport_handler.panelVersionDTO:
     properties:
       checkedAt:
         type: string
@@ -392,12 +429,40 @@ definitions:
       updateAvailable:
         type: boolean
     type: object
-  handler.setStatusRequest:
+  internal_transport_handler.setStatusRequest:
     properties:
       status:
         type: string
     type: object
-  handler.trafficPointDTO:
+  internal_transport_handler.subscriptionLinkDTO:
+    properties:
+      label:
+        type: string
+      protocol:
+        type: string
+      url:
+        type: string
+    type: object
+  internal_transport_handler.subscriptionMetaDTO:
+    properties:
+      expiry:
+        type: string
+      links:
+        items:
+          $ref: '#/definitions/internal_transport_handler.subscriptionLinkDTO'
+        type: array
+      name:
+        type: string
+      online:
+        type: boolean
+      subscriptionUrl:
+        type: string
+      total:
+        type: integer
+      used:
+        type: integer
+    type: object
+  internal_transport_handler.trafficPointDTO:
     properties:
       down:
         type: integer
@@ -406,12 +471,16 @@ definitions:
       up:
         type: integer
     type: object
-  handler.updateClientRequest:
+  internal_transport_handler.updateClientRequest:
     properties:
       expiry:
         type: string
       inboundId:
         type: string
+      inboundIds:
+        items:
+          type: string
+        type: array
       name:
         type: string
       nodeId:
@@ -456,7 +525,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.changePasswordRequest'
+          $ref: '#/definitions/internal_transport_handler.changePasswordRequest'
       produces:
       - application/json
       responses:
@@ -489,7 +558,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.loginRequest'
+          $ref: '#/definitions/internal_transport_handler.loginRequest'
       produces:
       - application/json
       responses:
@@ -530,7 +599,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.loginRecoveryRequest'
+          $ref: '#/definitions/internal_transport_handler.loginRecoveryRequest'
       produces:
       - application/json
       responses:
@@ -567,7 +636,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.loginTOTPRequest'
+          $ref: '#/definitions/internal_transport_handler.loginTOTPRequest'
       produces:
       - application/json
       responses:
@@ -616,7 +685,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.meResponse'
+            $ref: '#/definitions/internal_transport_handler.meResponse'
         "401":
           description: Unauthorized
           schema:
@@ -640,7 +709,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.confirmTOTPRequest'
+          $ref: '#/definitions/internal_transport_handler.confirmTOTPRequest'
       produces:
       - application/json
       responses:
@@ -671,7 +740,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.disableTOTPRequest'
+          $ref: '#/definitions/internal_transport_handler.disableTOTPRequest'
       produces:
       - application/json
       responses:
@@ -751,7 +820,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/handler.clientDTO'
+              $ref: '#/definitions/internal_transport_handler.clientDTO'
             type: array
       security:
       - BearerAuth: []
@@ -767,14 +836,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.createClientRequest'
+          $ref: '#/definitions/internal_transport_handler.createClientRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/handler.clientDTO'
+            $ref: '#/definitions/internal_transport_handler.clientDTO'
       security:
       - BearerAuth: []
       summary: Create a client
@@ -815,7 +884,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.clientDTO'
+            $ref: '#/definitions/internal_transport_handler.clientDTO'
       security:
       - BearerAuth: []
       summary: Get a client
@@ -835,14 +904,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.updateClientRequest'
+          $ref: '#/definitions/internal_transport_handler.updateClientRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.clientDTO'
+            $ref: '#/definitions/internal_transport_handler.clientDTO'
       security:
       - BearerAuth: []
       summary: Update a client
@@ -862,7 +931,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.clientLinksDTO'
+            $ref: '#/definitions/internal_transport_handler.clientLinksDTO'
       security:
       - BearerAuth: []
       summary: Get a client's share link and subscription URL
@@ -882,7 +951,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.clientDTO'
+            $ref: '#/definitions/internal_transport_handler.clientDTO'
       security:
       - BearerAuth: []
       summary: Reset a client's traffic counters
@@ -903,17 +972,104 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.setStatusRequest'
+          $ref: '#/definitions/internal_transport_handler.setStatusRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.clientDTO'
+            $ref: '#/definitions/internal_transport_handler.clientDTO'
       security:
       - BearerAuth: []
       summary: Set a client's status
+      tags:
+      - clients
+  /clients/bulk/delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client IDs
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_handler.bulkClientRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_handler.bulkClientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete multiple clients
+      tags:
+      - clients
+  /clients/bulk/reset-traffic:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client IDs
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_handler.bulkClientRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_handler.bulkClientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reset traffic for multiple clients
+      tags:
+      - clients
+  /clients/bulk/set-status:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client IDs and status
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_handler.bulkClientRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_handler.bulkClientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Set status for multiple clients
       tags:
       - clients
   /core/config:
@@ -951,7 +1107,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.coreLogsResponse'
+            $ref: '#/definitions/internal_transport_handler.coreLogsResponse'
       security:
       - BearerAuth: []
       summary: Core process logs
@@ -1024,7 +1180,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.coreStatusDTO'
+            $ref: '#/definitions/internal_transport_handler.coreStatusDTO'
       security:
       - BearerAuth: []
       summary: Core process status
@@ -1070,7 +1226,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.metricsDTO'
+            $ref: '#/definitions/internal_transport_handler.metricsDTO'
       security:
       - BearerAuth: []
       summary: Dashboard metrics snapshot
@@ -1085,7 +1241,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/handler.trafficPointDTO'
+              $ref: '#/definitions/internal_transport_handler.trafficPointDTO'
             type: array
       security:
       - BearerAuth: []
@@ -1116,7 +1272,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/handler.inboundDTO'
+              $ref: '#/definitions/internal_transport_handler.inboundDTO'
             type: array
       security:
       - BearerAuth: []
@@ -1132,14 +1288,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.inboundRequest'
+          $ref: '#/definitions/internal_transport_handler.inboundRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/handler.inboundDTO'
+            $ref: '#/definitions/internal_transport_handler.inboundDTO'
       security:
       - BearerAuth: []
       summary: Create an inbound
@@ -1180,7 +1336,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.inboundDTO'
+            $ref: '#/definitions/internal_transport_handler.inboundDTO'
       security:
       - BearerAuth: []
       summary: Get an inbound
@@ -1200,14 +1356,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.inboundRequest'
+          $ref: '#/definitions/internal_transport_handler.inboundRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.inboundDTO'
+            $ref: '#/definitions/internal_transport_handler.inboundDTO'
       security:
       - BearerAuth: []
       summary: Update an inbound
@@ -1227,7 +1383,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/handler.inboundDTO'
+            $ref: '#/definitions/internal_transport_handler.inboundDTO'
       security:
       - BearerAuth: []
       summary: Clone an inbound
@@ -1247,7 +1403,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.inboundDTO'
+            $ref: '#/definitions/internal_transport_handler.inboundDTO'
       security:
       - BearerAuth: []
       summary: Enable/disable an inbound
@@ -1281,7 +1437,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/handler.logEntryDTO'
+              $ref: '#/definitions/internal_transport_handler.logEntryDTO'
             type: array
       security:
       - BearerAuth: []
@@ -1300,7 +1456,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.frontendLogRequest'
+          $ref: '#/definitions/internal_transport_handler.frontendLogRequest'
       produces:
       - application/json
       responses:
@@ -1321,6 +1477,75 @@ paths:
       summary: Record a frontend log line
       tags:
       - logs
+  /node/v1/clients/bulk/delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client IDs
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_handler.bulkClientRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_handler.bulkClientResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete multiple local clients through the node API
+      tags:
+      - node
+  /node/v1/clients/bulk/reset-traffic:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client IDs
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_handler.bulkClientRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_handler.bulkClientResponse'
+      security:
+      - BearerAuth: []
+      summary: Reset multiple local client counters through the node API
+      tags:
+      - node
+  /node/v1/clients/bulk/set-status:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client IDs and status
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_handler.bulkClientRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_handler.bulkClientResponse'
+      security:
+      - BearerAuth: []
+      summary: Set multiple local client statuses through the node API
+      tags:
+      - node
   /panel/update:
     post:
       description: Starts the configured update helper asynchronously. Returns 409
@@ -1331,7 +1556,7 @@ paths:
         "202":
           description: Accepted
           schema:
-            $ref: '#/definitions/handler.panelVersionDTO'
+            $ref: '#/definitions/internal_transport_handler.panelVersionDTO'
         "409":
           description: Conflict
           schema:
@@ -1357,7 +1582,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.panelVersionDTO'
+            $ref: '#/definitions/internal_transport_handler.panelVersionDTO'
       security:
       - BearerAuth: []
       summary: Panel version and update status
@@ -1391,6 +1616,30 @@ paths:
               type: string
             type: object
       summary: Fetch a subscription (public)
+      tags:
+      - subscription
+  /subscription/{token}/meta:
+    get:
+      parameters:
+      - description: Subscription token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_transport_handler.subscriptionMetaDTO'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Subscription metadata for the public subscription page (public)
       tags:
       - subscription
 securityDefinitions:

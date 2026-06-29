@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DateInput, Input, Label, NumberInput } from "@/components/ui/input";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Toggle } from "@/components/ui/toggle";
 import { useToast } from "@/components/ui/toast";
 import { useInbounds, useStoreActions } from "@/lib/store";
@@ -40,7 +41,7 @@ export function AddClientModal({ open, onClose, defaultInboundId, defaultNodeId 
   const [name, setName] = useState("");
   const [nodes, setNodes] = useState<NodeDTO[]>([]);
   const [nodeId, setNodeId] = useState("local");
-  const [inboundId, setInboundId] = useState("");
+  const [inboundIds, setInboundIds] = useState<string[]>([]);
   const [totalFlowGb, setTotalFlowGb] = useState("100");
   const [expiry, setExpiry] = useState("");
   // Quota and expiry are opt-in: off by default → unlimited traffic / no expiry.
@@ -83,7 +84,7 @@ export function AddClientModal({ open, onClose, defaultInboundId, defaultNodeId 
         ? defaultInbound.id
         : (currentInbounds.find((inbound) => (nextNodeId === "local" ? !inbound.nodeId : inbound.nodeId === nextNodeId))?.id ?? "");
     setNodeId(nextNodeId);
-    setInboundId(nextInbound);
+    setInboundIds(nextInbound ? [nextInbound] : []);
     setTotalFlowGb("100");
     setExpiry(defaultExpiryIso().slice(0, 10));
     setEnableQuota(false);
@@ -91,18 +92,26 @@ export function AddClientModal({ open, onClose, defaultInboundId, defaultNodeId 
     setStartAfterFirstUse(false);
   }, [open, defaultInboundId, defaultNodeId]);
 
+  // Prune selections that don't belong to the current node's inbounds (e.g.
+  // after switching node); default to the first option when nothing remains.
   useEffect(() => {
     if (!open) return;
-    if (inboundOptions.some((option) => option.value === inboundId)) return;
-    setInboundId(inboundOptions[0]?.value ?? "");
-  }, [open, inboundId, inboundOptions]);
+    const valid = inboundIds.filter((id) => inboundOptions.some((o) => o.value === id));
+    if (valid.length !== inboundIds.length) {
+      setInboundIds(valid.length > 0 ? valid : inboundOptions[0] ? [inboundOptions[0].value] : []);
+      return;
+    }
+    if (valid.length === 0 && inboundOptions[0]) {
+      setInboundIds([inboundOptions[0].value]);
+    }
+  }, [open, inboundIds, inboundOptions]);
 
   async function handleSave() {
     if (!name.trim()) {
       setNameError(t("clients.nameRequired"));
       return;
     }
-    if (!inboundId) {
+    if (inboundIds.length === 0) {
       push(t("clients.inboundRequired"), "error");
       return;
     }
@@ -111,7 +120,7 @@ export function AddClientModal({ open, onClose, defaultInboundId, defaultNodeId 
       await addClient({
         ...(nodeId !== "local" ? { nodeId } : {}),
         name: name.trim(),
-        inboundId,
+        inboundIds,
         totalQuota: enableQuota ? (Number(totalFlowGb) || 0) * GB : 0,
         expiry: enableExpiry && expiry ? new Date(expiry).toISOString() : "",
         startAfterFirstUse,
@@ -158,10 +167,10 @@ export function AddClientModal({ open, onClose, defaultInboundId, defaultNodeId 
         ) : null}
         <div>
           <Label>{t("clients.inbound")}</Label>
-          <Select
-            value={inboundId}
+          <MultiSelect
+            values={inboundIds}
             options={inboundOptions}
-            onChange={setInboundId}
+            onChange={setInboundIds}
           />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

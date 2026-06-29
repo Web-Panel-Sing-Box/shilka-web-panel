@@ -1,13 +1,18 @@
 package handler
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"sing-box-web-panel/internal/domain"
+	"sing-box-web-panel/internal/repo"
 	svcclient "sing-box-web-panel/internal/services/client"
 	svcnode "sing-box-web-panel/internal/services/node"
 )
@@ -30,6 +35,9 @@ func NewClientHandler(svc *svcclient.Service, subBaseURL string, log *slog.Logge
 func (h *ClientHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/clients", h.List)
 	mux.HandleFunc("POST /api/clients", h.Create)
+	mux.HandleFunc("POST /api/clients/bulk/delete", h.BulkDelete)
+	mux.HandleFunc("POST /api/clients/bulk/set-status", h.BulkSetStatus)
+	mux.HandleFunc("POST /api/clients/bulk/reset-traffic", h.BulkResetTraffic)
 	mux.HandleFunc("GET /api/clients/{id}", h.Get)
 	mux.HandleFunc("PUT /api/clients/{id}", h.Update)
 	mux.HandleFunc("DELETE /api/clients/{id}", h.Delete)
@@ -49,15 +57,16 @@ type clientDTO struct {
 	ID                 string `json:"id"`
 	NodeID             string `json:"nodeId,omitempty"`
 	RemoteID           string `json:"remoteId,omitempty"`
-	Name               string `json:"name"`
-	UUID               string `json:"uuid"`
-	InboundID          string `json:"inboundId"`
-	UsedDown           int64  `json:"usedDown"`
-	UsedUp             int64  `json:"usedUp"`
-	TotalQuota         int64  `json:"totalQuota"`
-	Expiry             string `json:"expiry"`
-	Status             string `json:"status"`
-	Subscription       string `json:"subscription"`
+	Name               string   `json:"name"`
+	UUID               string   `json:"uuid"`
+	InboundID          string   `json:"inboundId"`
+	InboundIDs         []string `json:"inboundIds"`
+	UsedDown           int64    `json:"usedDown"`
+	UsedUp             int64    `json:"usedUp"`
+	TotalQuota         int64    `json:"totalQuota"`
+	Expiry             string   `json:"expiry"`
+	Status             string   `json:"status"`
+	Subscription       string   `json:"subscription"`
 	SubToken           string `json:"subToken,omitempty"`
 	Enabled            bool   `json:"enabled"`
 	StartAfterFirstUse bool   `json:"startAfterFirstUse"`
@@ -71,6 +80,7 @@ func (h *ClientHandler) toDTO(c *domain.Client) clientDTO {
 		Name:               c.Name,
 		UUID:               c.UUID,
 		InboundID:          strconv.FormatInt(c.InboundID, 10),
+		InboundIDs:         formatInboundIDs(c),
 		UsedDown:           c.UsedDown,
 		UsedUp:             c.UsedUp,
 		TotalQuota:         c.TotalQuota,
@@ -120,12 +130,13 @@ func (h *ClientHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type createClientRequest struct {
-	NodeID             string `json:"nodeId,omitempty"`
-	Name               string `json:"name"`
-	InboundID          string `json:"inboundId"`
-	TotalQuota         int64  `json:"totalQuota"`
-	Expiry             string `json:"expiry"`
-	StartAfterFirstUse bool   `json:"startAfterFirstUse"`
+	NodeID             string   `json:"nodeId,omitempty"`
+	Name               string   `json:"name"`
+	InboundID          string   `json:"inboundId"`
+	InboundIDs         []string `json:"inboundIds,omitempty"`
+	TotalQuota         int64    `json:"totalQuota"`
+	Expiry             string   `json:"expiry"`
+	StartAfterFirstUse bool     `json:"startAfterFirstUse"`
 }
 
 // Create godoc
@@ -197,9 +208,8 @@ func (h *ClientHandler) createRemote(w http.ResponseWriter, r *http.Request, nod
 }
 
 func (req createClientRequest) toInput(w http.ResponseWriter) (svcclient.CreateInput, bool) {
-	inboundID, err := strconv.ParseInt(req.InboundID, 10, 64)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid inboundId"})
+	ids, ok := parseInboundIDs(w, req.InboundIDs, req.InboundID)
+	if !ok {
 		return svcclient.CreateInput{}, false
 	}
 	expiry, err := parseTimePtr(req.Expiry)
@@ -209,7 +219,8 @@ func (req createClientRequest) toInput(w http.ResponseWriter) (svcclient.CreateI
 	}
 	return svcclient.CreateInput{
 		Name:               req.Name,
-		InboundID:          inboundID,
+		InboundID:          ids[0],
+		InboundIDs:         ids,
 		TotalQuota:         req.TotalQuota,
 		Expiry:             expiry,
 		StartAfterFirstUse: req.StartAfterFirstUse,
@@ -240,13 +251,14 @@ func (h *ClientHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateClientRequest struct {
-	NodeID             *string `json:"nodeId,omitempty"`
-	Name               *string `json:"name"`
-	InboundID          *string `json:"inboundId"`
-	TotalQuota         *int64  `json:"totalQuota"`
-	Expiry             *string `json:"expiry"`
-	Status             *string `json:"status"`
-	StartAfterFirstUse *bool   `json:"startAfterFirstUse"`
+	NodeID             *string   `json:"nodeId,omitempty"`
+	Name               *string   `json:"name"`
+	InboundID          *string   `json:"inboundId"`
+	InboundIDs         *[]string `json:"inboundIds"`
+	TotalQuota         *int64    `json:"totalQuota"`
+	Expiry             *string   `json:"expiry"`
+	Status             *string   `json:"status"`
+	StartAfterFirstUse *bool     `json:"startAfterFirstUse"`
 }
 
 // Update godoc
@@ -313,7 +325,13 @@ func (req updateClientRequest) toInput(w http.ResponseWriter) (svcclient.UpdateI
 		TotalQuota:         req.TotalQuota,
 		StartAfterFirstUse: req.StartAfterFirstUse,
 	}
-	if req.InboundID != nil {
+	if req.InboundIDs != nil {
+		ids, ok := parseInboundIDs(w, *req.InboundIDs, "")
+		if !ok {
+			return svcclient.UpdateInput{}, false
+		}
+		in.InboundIDs = &ids
+	} else if req.InboundID != nil {
 		inboundID, err := strconv.ParseInt(*req.InboundID, 10, 64)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid inboundId"})
@@ -420,6 +438,247 @@ type setStatusRequest struct {
 	Status string `json:"status"`
 }
 
+type bulkClientRequest struct {
+	IDs    []string `json:"ids"`
+	Status string   `json:"status,omitempty"`
+}
+
+type bulkClientResultDTO struct {
+	ID    string `json:"id"`
+	OK    bool   `json:"ok"`
+	Error string `json:"error"`
+}
+
+type bulkClientResponse struct {
+	Results []bulkClientResultDTO `json:"results"`
+}
+
+type bulkClientTarget struct {
+	rawID string
+	id    int64
+}
+
+type bulkLocalMutation func(context.Context, []int64) ([]svcclient.BulkResult, error)
+type bulkRemoteMutation func(context.Context, int64, []int64) ([]svcclient.BulkResult, error)
+
+// BulkDelete godoc
+//
+//	@Summary	Delete multiple clients
+//	@Tags		clients
+//	@Accept		json
+//	@Produce	json
+//	@Security	BearerAuth
+//	@Param		request	body		bulkClientRequest	true	"Client IDs"
+//	@Success	200		{object}	bulkClientResponse
+//	@Failure	400		{object}	map[string]string
+//	@Router		/clients/bulk/delete [post]
+func (h *ClientHandler) BulkDelete(w http.ResponseWriter, r *http.Request) {
+	targets, ok := decodeBulkClientTargets(w, r)
+	if !ok {
+		return
+	}
+	response := h.runBulk(r.Context(), targets, "bulk delete clients", h.svc.BulkDelete, h.remoteBulkDelete)
+	writeJSON(w, http.StatusOK, response)
+}
+
+// BulkResetTraffic godoc
+//
+//	@Summary	Reset traffic for multiple clients
+//	@Tags		clients
+//	@Accept		json
+//	@Produce	json
+//	@Security	BearerAuth
+//	@Param		request	body		bulkClientRequest	true	"Client IDs"
+//	@Success	200		{object}	bulkClientResponse
+//	@Failure	400		{object}	map[string]string
+//	@Router		/clients/bulk/reset-traffic [post]
+func (h *ClientHandler) BulkResetTraffic(w http.ResponseWriter, r *http.Request) {
+	targets, ok := decodeBulkClientTargets(w, r)
+	if !ok {
+		return
+	}
+	response := h.runBulk(r.Context(), targets, "bulk reset client traffic", h.svc.BulkResetTraffic, h.remoteBulkResetTraffic)
+	writeJSON(w, http.StatusOK, response)
+}
+
+// BulkSetStatus godoc
+//
+//	@Summary	Set status for multiple clients
+//	@Tags		clients
+//	@Accept		json
+//	@Produce	json
+//	@Security	BearerAuth
+//	@Param		request	body		bulkClientRequest	true	"Client IDs and status"
+//	@Success	200		{object}	bulkClientResponse
+//	@Failure	400		{object}	map[string]string
+//	@Router		/clients/bulk/set-status [post]
+func (h *ClientHandler) BulkSetStatus(w http.ResponseWriter, r *http.Request) {
+	var req bulkClientRequest
+	targets, ok := decodeBulkClientRequest(w, r, &req)
+	if !ok {
+		return
+	}
+	status := domain.ClientStatus(req.Status)
+	if status != domain.ClientStatusActive && status != domain.ClientStatusDisabled {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "status must be active or disabled"})
+		return
+	}
+	response := h.runBulk(
+		r.Context(),
+		targets,
+		"bulk set client status",
+		func(ctx context.Context, ids []int64) ([]svcclient.BulkResult, error) {
+			return h.svc.BulkSetStatus(ctx, ids, status)
+		},
+		func(ctx context.Context, nodeID int64, ids []int64) ([]svcclient.BulkResult, error) {
+			if h.nodes == nil {
+				err := fmt.Errorf("%w: node mutations are not configured", svcnode.ErrValidation)
+				return bulkServiceFailures(ids, err), err
+			}
+			return h.nodes.BulkSetClientStatus(ctx, nodeID, ids, status)
+		},
+	)
+	writeJSON(w, http.StatusOK, response)
+}
+
+func decodeBulkClientTargets(w http.ResponseWriter, r *http.Request) ([]bulkClientTarget, bool) {
+	var req bulkClientRequest
+	return decodeBulkClientRequest(w, r, &req)
+}
+
+func decodeBulkClientRequest(w http.ResponseWriter, r *http.Request, req *bulkClientRequest) ([]bulkClientTarget, bool) {
+	if !decodeJSON(w, r, req) {
+		return nil, false
+	}
+	if len(req.IDs) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ids must not be empty"})
+		return nil, false
+	}
+	seen := make(map[int64]struct{}, len(req.IDs))
+	targets := make([]bulkClientTarget, 0, len(req.IDs))
+	for _, rawID := range req.IDs {
+		id, err := strconv.ParseInt(rawID, 10, 64)
+		if err != nil || id <= 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ids must contain positive integers"})
+			return nil, false
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		targets = append(targets, bulkClientTarget{rawID: rawID, id: id})
+	}
+	return targets, true
+}
+
+func (h *ClientHandler) runBulk(
+	ctx context.Context,
+	targets []bulkClientTarget,
+	op string,
+	localMutation bulkLocalMutation,
+	remoteMutation bulkRemoteMutation,
+) bulkClientResponse {
+	response := bulkClientResponse{Results: make([]bulkClientResultDTO, len(targets))}
+	indexByID := make(map[int64]int, len(targets))
+	localIDs := make([]int64, 0, len(targets))
+	remoteGroups := make(map[int64][]int64)
+	for i, target := range targets {
+		response.Results[i].ID = target.rawID
+		indexByID[target.id] = i
+		client, err := h.svc.Get(ctx, target.id)
+		if err != nil {
+			response.Results[i].Error = bulkPublicError(err)
+			continue
+		}
+		if client.NodeID == nil {
+			localIDs = append(localIDs, target.id)
+			continue
+		}
+		remoteGroups[*client.NodeID] = append(remoteGroups[*client.NodeID], target.id)
+	}
+
+	if len(localIDs) > 0 {
+		results, err := localMutation(ctx, localIDs)
+		h.logBulkError(op, err)
+		applyBulkResults(response.Results, indexByID, results)
+	}
+
+	nodeIDs := make([]int64, 0, len(remoteGroups))
+	for nodeID := range remoteGroups {
+		nodeIDs = append(nodeIDs, nodeID)
+	}
+	sort.Slice(nodeIDs, func(i, j int) bool { return nodeIDs[i] < nodeIDs[j] })
+	for _, nodeID := range nodeIDs {
+		ids := remoteGroups[nodeID]
+		if h.nodes == nil {
+			err := fmt.Errorf("%w: node mutations are not configured", svcnode.ErrValidation)
+			applyBulkResults(response.Results, indexByID, bulkServiceFailures(ids, err))
+			continue
+		}
+		results, err := remoteMutation(ctx, nodeID, ids)
+		h.logBulkError(op, err)
+		applyBulkResults(response.Results, indexByID, results)
+	}
+	return response
+}
+
+func (h *ClientHandler) remoteBulkDelete(ctx context.Context, nodeID int64, ids []int64) ([]svcclient.BulkResult, error) {
+	return h.nodes.BulkDeleteClients(ctx, nodeID, ids)
+}
+
+func (h *ClientHandler) remoteBulkResetTraffic(ctx context.Context, nodeID int64, ids []int64) ([]svcclient.BulkResult, error) {
+	return h.nodes.BulkResetClientTraffic(ctx, nodeID, ids)
+}
+
+func (h *ClientHandler) logBulkError(op string, err error) {
+	if err == nil {
+		return
+	}
+	if errors.Is(err, svcnode.ErrNodeUnreachable) || errors.Is(err, svcnode.ErrRemote) {
+		h.log.Warn(op, slog.String("error", bulkPublicError(err)))
+		return
+	}
+	h.log.Error(op, slog.String("error", err.Error()))
+}
+
+func applyBulkResults(out []bulkClientResultDTO, indexByID map[int64]int, results []svcclient.BulkResult) {
+	for _, result := range results {
+		i, ok := indexByID[result.ID]
+		if !ok {
+			continue
+		}
+		out[i].OK = result.OK
+		if !result.OK {
+			out[i].Error = bulkPublicError(result.Err)
+		}
+	}
+}
+
+func bulkPublicError(err error) string {
+	switch {
+	case err == nil:
+		return "internal error"
+	case errors.Is(err, repo.ErrNotFound):
+		return "not found"
+	case errors.Is(err, svcnode.ErrNodeUnreachable):
+		return "node unreachable"
+	case errors.Is(err, svcnode.ErrRemote):
+		return "remote node error"
+	case errors.Is(err, svcclient.ErrValidation), errors.Is(err, svcnode.ErrValidation):
+		return "invalid client"
+	default:
+		return "internal error"
+	}
+}
+
+func bulkServiceFailures(ids []int64, err error) []svcclient.BulkResult {
+	results := make([]svcclient.BulkResult, len(ids))
+	for i, id := range ids {
+		results[i] = svcclient.BulkResult{ID: id, Err: err}
+	}
+	return results
+}
+
 // SetStatus godoc
 //
 //	@Summary	Set a client's status
@@ -471,4 +730,42 @@ const onlineThreshold = time.Second * 5
 
 func isOnline(lastUsedAt *time.Time) bool {
 	return lastUsedAt != nil && time.Since(*lastUsedAt) < onlineThreshold
+}
+
+// parseInboundIDs resolves the inbound id set from a request, accepting the new
+// inboundIds array and falling back to the legacy single inboundId. At least one
+// id is required.
+func parseInboundIDs(w http.ResponseWriter, ids []string, legacy string) ([]int64, bool) {
+	raw := ids
+	if len(raw) == 0 && legacy != "" {
+		raw = []string{legacy}
+	}
+	out := make([]int64, 0, len(raw))
+	for _, s := range raw {
+		id, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid inboundId"})
+			return nil, false
+		}
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "at least one inbound is required"})
+		return nil, false
+	}
+	return out, true
+}
+
+// formatInboundIDs renders the client's inbound set as strings, falling back to
+// the primary InboundID when the set is empty.
+func formatInboundIDs(c *domain.Client) []string {
+	ids := c.InboundIDs
+	if len(ids) == 0 {
+		ids = []int64{c.InboundID}
+	}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, strconv.FormatInt(id, 10))
+	}
+	return out
 }

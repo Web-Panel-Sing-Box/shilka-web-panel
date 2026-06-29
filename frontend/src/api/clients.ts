@@ -10,6 +10,7 @@ export type ClientDTO = {
   name: string;
   uuid: string;
   inboundId: string;
+  inboundIds: string[];
   usedDown: number;
   usedUp: number;
   totalQuota: number;
@@ -25,7 +26,7 @@ export type ClientDTO = {
 export type ClientCreateRequest = {
   nodeId?: string;
   name: string;
-  inboundId: string;
+  inboundIds: string[];
   totalQuota?: number;
   expiry?: string;
   startAfterFirstUse?: boolean;
@@ -34,7 +35,7 @@ export type ClientCreateRequest = {
 export type ClientUpdateRequest = {
   nodeId?: string;
   name?: string;
-  inboundId?: string;
+  inboundIds?: string[];
   totalQuota?: number;
   expiry?: string;
   status?: ClientStatus;
@@ -45,16 +46,42 @@ export type ClientSetStatusRequest = {
   status: ClientStatus;
 };
 
+export type ClientLink = {
+  label: string;
+  url: string;
+  protocol: string;
+};
+
+export type BulkClientRequest = {
+  ids: string[];
+};
+
+export type BulkClientStatusRequest = BulkClientRequest & {
+  status: Extract<ClientStatus, "active" | "disabled">;
+};
+
+export type BulkClientResult = {
+  id: string;
+  ok: boolean;
+  error: string;
+};
+
+export type BulkClientResponse = {
+  results: BulkClientResult[];
+};
+
 export type ClientLinksDTO = {
   link: string;
   shareLink: string;
   subscription: string;
+  links: ClientLink[];
 };
 
 type ClientLinksResponse = {
   link?: string;
   shareLink?: string;
   subscription: string;
+  links?: ClientLink[];
 };
 
 export type MessageResponse = {
@@ -92,6 +119,21 @@ export function setClientStatus(id: string, body: ClientSetStatusRequest): Promi
   return apiPost<ClientDTO>(`/clients/${id}/status`, body);
 }
 
+export function bulkDeleteClients(ids: string[]): Promise<BulkClientResponse> {
+  return apiPost<BulkClientResponse>("/clients/bulk/delete", { ids });
+}
+
+export function bulkResetClientTraffic(ids: string[]): Promise<BulkClientResponse> {
+  return apiPost<BulkClientResponse>("/clients/bulk/reset-traffic", { ids });
+}
+
+export function bulkSetClientStatus(
+  ids: string[],
+  status: BulkClientStatusRequest["status"],
+): Promise<BulkClientResponse> {
+  return apiPost<BulkClientResponse>("/clients/bulk/set-status", { ids, status });
+}
+
 export async function getClientLinks(id: string): Promise<ClientLinksDTO> {
   const links = await apiGet<ClientLinksResponse>(`/clients/${id}/links`);
   const shareLink = links.shareLink ?? links.link ?? "";
@@ -99,5 +141,6 @@ export async function getClientLinks(id: string): Promise<ClientLinksDTO> {
     link: links.link ?? shareLink,
     shareLink,
     subscription: links.subscription,
+    links: links.links ?? [],
   };
 }

@@ -176,6 +176,83 @@ func TestGeneratorEmitsPerClientOutboundAndRouteRule(t *testing.T) {
 	}
 }
 
+func TestGeneratorMultiInboundClientAppearsInAllInbounds(t *testing.T) {
+	ib1 := realityInbound() // id 1
+	ib2 := realityInbound()
+	ib2.ID = 2
+	ib2.Remark = "edge2"
+	ib2.Port = 44322
+
+	gen := singbox.NewGenerator(
+		fakeInbounds{list: []domain.Inbound{ib1, ib2}},
+		fakeClients{list: []domain.Client{
+			{ID: 7, InboundID: 1, InboundIDs: []int64{1, 2}, Name: "multi", UUID: "uuid-7", Status: domain.ClientStatusActive},
+		}},
+		singbox.GeneratorConfig{
+			ClashAPIAddress: "127.0.0.1:9090",
+			StatsSource:     "v2ray", V2RayAPIListen: "127.0.0.1:8088",
+		},
+	)
+	data, err := gen.Render(context.Background())
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// The client must be emitted into BOTH inbound blocks.
+	inbounds := cfg["inbounds"].([]any)
+	if len(inbounds) != 2 {
+		t.Fatalf("want 2 inbounds, got %d", len(inbounds))
+	}
+	for _, raw := range inbounds {
+		ib := raw.(map[string]any)
+		users := ib["users"].([]any)
+		if len(users) != 1 || users[0].(map[string]any)["uuid"] != "uuid-7" {
+			t.Errorf("inbound %v should contain the multi-inbound client, got %v", ib["tag"], users)
+		}
+	}
+
+	// Its per-client direct outbound must be emitted exactly once.
+	outbounds := cfg["outbounds"].([]any)
+	obCount := 0
+	for _, raw := range outbounds {
+		if raw.(map[string]any)["tag"] == "user-7" {
+			obCount++
+		}
+	}
+	if obCount != 1 {
+		t.Errorf("want exactly 1 per-client outbound user-7, got %d", obCount)
+	}
+
+	// Its route rule must be emitted exactly once.
+	rules := cfg["route"].(map[string]any)["rules"].([]any)
+	ruleCount := 0
+	for _, raw := range rules {
+		users, _ := raw.(map[string]any)["auth_user"].([]any)
+		if len(users) == 1 && users[0] == "multi" {
+			ruleCount++
+		}
+	}
+	if ruleCount != 1 {
+		t.Errorf("want exactly 1 route rule for multi, got %d", ruleCount)
+	}
+
+	// v2ray stats must list the user once.
+	stats := cfg["experimental"].(map[string]any)["v2ray_api"].(map[string]any)["stats"].(map[string]any)["users"].([]any)
+	statCount := 0
+	for _, u := range stats {
+		if u == "multi" {
+			statCount++
+		}
+	}
+	if statCount != 1 {
+		t.Errorf("want multi listed once in v2ray stats, got %d", statCount)
+	}
+}
+
 func TestGeneratorSkipsInactiveClients(t *testing.T) {
 	gen := singbox.NewGenerator(
 		fakeInbounds{list: []domain.Inbound{realityInbound()}},

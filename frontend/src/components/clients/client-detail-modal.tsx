@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DateInput, Input, Label, NumberInput } from "@/components/ui/input";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Toggle } from "@/components/ui/toggle";
 import { useToast } from "@/components/ui/toast";
 import type { Client, ClientStatus } from "@/lib/store";
@@ -90,7 +91,7 @@ export function ClientDetailModal({ client, onClose }: Props) {
       await updateClient(draft.id, {
         nodeId: draft.nodeId,
         name: draft.name,
-        inboundId: draft.inboundId,
+        inboundIds: draft.inboundIds,
         totalQuota: parsedFlow * GB,
         expiry: draft.expiry,
         status: draft.status,
@@ -149,10 +150,10 @@ export function ClientDetailModal({ client, onClose }: Props) {
           </div>
           <div>
             <Label>{t("clients.inbound")}</Label>
-            <Select
-              value={draft.inboundId}
+            <MultiSelect
+              values={draft.inboundIds ?? []}
               options={inboundOptions}
-              onChange={(v) => update("inboundId", v)}
+              onChange={(v) => update("inboundIds", v)}
             />
           </div>
           <div>

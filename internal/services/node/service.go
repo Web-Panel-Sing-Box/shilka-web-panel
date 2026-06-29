@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"sing-box-web-panel/internal/domain"
+	"sing-box-web-panel/internal/repo"
 	svcclient "sing-box-web-panel/internal/services/client"
 	svcinbound "sing-box-web-panel/internal/services/inbound"
 )
@@ -38,6 +39,9 @@ type ClientCache interface {
 	GetByRemote(ctx context.Context, nodeID int64, remoteID string) (*domain.Client, error)
 	UpsertRemote(ctx context.Context, nodeID int64, remoteID string, inboundID int64, c *domain.Client) error
 	Delete(ctx context.Context, id int64) error
+	DeleteMany(ctx context.Context, ids []int64) error
+	SetStatusMany(ctx context.Context, ids []int64, status domain.ClientStatus, enabled bool) error
+	ResetTrafficMany(ctx context.Context, ids []int64) error
 }
 
 type Service struct {
@@ -362,6 +366,143 @@ func (s *Service) SetClientStatus(ctx context.Context, id int64, status domain.C
 		return nil, err
 	}
 	return s.cacheRemoteClient(ctx, nodeID, rc)
+}
+
+func (s *Service) BulkDeleteClients(ctx context.Context, nodeID int64, ids []int64) ([]svcclient.BulkResult, error) {
+	return s.bulkClients(ctx, nodeID, ids,
+		func(n *domain.Node, remoteIDs []string) (*RemoteClientBulkResponse, error) {
+			return s.remote.BulkDeleteClients(ctx, n, remoteIDs)
+		},
+		func(successIDs []int64) error { return s.clients.DeleteMany(ctx, successIDs) },
+	)
+}
+
+func (s *Service) BulkResetClientTraffic(ctx context.Context, nodeID int64, ids []int64) ([]svcclient.BulkResult, error) {
+	return s.bulkClients(ctx, nodeID, ids,
+		func(n *domain.Node, remoteIDs []string) (*RemoteClientBulkResponse, error) {
+			return s.remote.BulkResetClientTraffic(ctx, n, remoteIDs)
+		},
+		func(successIDs []int64) error { return s.clients.ResetTrafficMany(ctx, successIDs) },
+	)
+}
+
+func (s *Service) BulkSetClientStatus(ctx context.Context, nodeID int64, ids []int64, status domain.ClientStatus) ([]svcclient.BulkResult, error) {
+	if status != domain.ClientStatusActive && status != domain.ClientStatusDisabled {
+		err := fmt.Errorf("%w: status must be active or disabled", ErrValidation)
+		return bulkFailures(ids, err), err
+	}
+	return s.bulkClients(ctx, nodeID, ids,
+		func(n *domain.Node, remoteIDs []string) (*RemoteClientBulkResponse, error) {
+			return s.remote.BulkSetClientStatus(ctx, n, remoteIDs, status)
+		},
+		func(successIDs []int64) error {
+			return s.clients.SetStatusMany(ctx, successIDs, status, status == domain.ClientStatusActive)
+		},
+	)
+}
+
+func (s *Service) bulkClients(
+	ctx context.Context,
+	nodeID int64,
+	ids []int64,
+	remoteCall func(*domain.Node, []string) (*RemoteClientBulkResponse, error),
+	updateCache func([]int64) error,
+) ([]svcclient.BulkResult, error) {
+	results := make([]svcclient.BulkResult, len(ids))
+	remoteIDs := make([]string, 0, len(ids))
+	remoteToIndex := make(map[string]int, len(ids))
+	for i, id := range ids {
+		results[i].ID = id
+		c, actualNodeID, err := s.cachedRemoteClient(ctx, id)
+		if err != nil {
+			results[i].Err = err
+			continue
+		}
+		if actualNodeID != nodeID {
+			results[i].Err = fmt.Errorf("%w: client belongs to a different node", ErrValidation)
+			continue
+		}
+		remoteIDs = append(remoteIDs, c.RemoteID)
+		remoteToIndex[c.RemoteID] = i
+	}
+	if len(remoteIDs) == 0 {
+		return results, nil
+	}
+
+	n, err := s.remoteNode(ctx, nodeID)
+	if err != nil {
+		setPendingBulkError(results, remoteToIndex, err)
+		return results, err
+	}
+	response, err := remoteCall(n, remoteIDs)
+	if err != nil {
+		setPendingBulkError(results, remoteToIndex, err)
+		return results, err
+	}
+	if response == nil {
+		err := fmt.Errorf("%w: empty bulk response", ErrRemote)
+		setPendingBulkError(results, remoteToIndex, err)
+		return results, err
+	}
+
+	seen := make(map[string]bool, len(remoteIDs))
+	successIDs := make([]int64, 0, len(remoteIDs))
+	for _, remoteResult := range response.Results {
+		i, ok := remoteToIndex[remoteResult.ID]
+		if !ok || seen[remoteResult.ID] {
+			continue
+		}
+		seen[remoteResult.ID] = true
+		if remoteResult.OK {
+			results[i].OK = true
+			successIDs = append(successIDs, results[i].ID)
+			continue
+		}
+		results[i].Err = remoteBulkError(remoteResult.Error)
+	}
+	for remoteID, i := range remoteToIndex {
+		if !seen[remoteID] {
+			results[i].Err = fmt.Errorf("%w: missing bulk result", ErrRemote)
+		}
+	}
+
+	if len(successIDs) > 0 {
+		if cacheErr := updateCache(successIDs); cacheErr != nil {
+			for i := range results {
+				if results[i].OK {
+					results[i].OK = false
+					results[i].Err = cacheErr
+				}
+			}
+			return results, cacheErr
+		}
+	}
+	return results, nil
+}
+
+func setPendingBulkError(results []svcclient.BulkResult, indexes map[string]int, err error) {
+	for _, i := range indexes {
+		results[i].Err = err
+	}
+}
+
+func remoteBulkError(message string) error {
+	switch strings.TrimSpace(message) {
+	case "not found":
+		return repo.ErrNotFound
+	case "node unreachable":
+		return &UnreachableError{Detail: "unreachable"}
+	default:
+		return fmt.Errorf("%w: remote bulk item failed", ErrRemote)
+	}
+}
+
+func bulkFailures(ids []int64, err error) []svcclient.BulkResult {
+	results := make([]svcclient.BulkResult, len(ids))
+	for i, id := range ids {
+		results[i] = svcclient.BulkResult{ID: id, Err: err}
+	}
+	return results
 }
 
 func (s *Service) remoteNode(ctx context.Context, nodeID int64) (*domain.Node, error) {

@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -15,26 +15,63 @@ import type { FilterState } from "./client-filter-bar";
 type Props = {
   filter: FilterState;
   onSelect: (client: Client) => void;
+  selectedIds: Set<string>;
+  onSelectionChange: (ids: Set<string>) => void;
+  selectionDisabled?: boolean;
 };
 
 // Name and Data Usage are clustered on the left; Inbound and Status are
 // clustered on the right. Expiry sits in the middle column with text-center
 // so its content visually floats away from both clusters.
-const GRID = "grid-cols-[1.4fr_220px_minmax(160px,1.6fr)_200px_140px] gap-x-3";
+const GRID = "grid-cols-[40px_1.4fr_220px_minmax(160px,1.6fr)_200px_140px] gap-x-3";
 
-export function ClientsTable({ filter, onSelect }: Props) {
+export function ClientsTable({
+  filter,
+  onSelect,
+  selectedIds,
+  onSelectionChange,
+  selectionDisabled = false,
+}: Props) {
   const clients = useClients();
   const inbounds = useInbounds();
   const { t } = useI18n();
   const inboundMap = useMemo(() => new Map(inbounds.map((i) => [i.id, i])), [inbounds]);
 
   const rows = useClientFilter(clients, filter);
+  const visibleIDs = useMemo(() => rows.map((client) => client.id), [rows]);
+  const selectedVisibleCount = visibleIDs.filter((id) => selectedIds.has(id)).length;
+  const allVisibleSelected = visibleIDs.length > 0 && selectedVisibleCount === visibleIDs.length;
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+
+  const toggleAll = useCallback(() => {
+    const next = new Set(selectedIds);
+    if (allVisibleSelected) {
+      visibleIDs.forEach((id) => next.delete(id));
+    } else {
+      visibleIDs.forEach((id) => next.add(id));
+    }
+    onSelectionChange(next);
+  }, [allVisibleSelected, onSelectionChange, selectedIds, visibleIDs]);
+
+  const toggleOne = useCallback((id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSelectionChange(next);
+  }, [onSelectionChange, selectedIds]);
 
   return (
     <Card padded={false} className="flex max-h-[calc(100dvh-170px)] flex-col overflow-hidden">
       <div className="flex-1 overflow-auto">
-        <div className="min-w-[960px]">
+        <div className="min-w-[1020px]">
           <div className={cn("sticky top-0 z-10 grid items-center border-b border-subtle bg-surface px-5 py-3 text-xs font-medium text-ink-tertiary", GRID)}>
+            <SelectionCheckbox
+              checked={allVisibleSelected}
+              indeterminate={someVisibleSelected}
+              disabled={selectionDisabled || visibleIDs.length === 0}
+              label={t("clients.selectAll")}
+              onChange={toggleAll}
+            />
             <span>{t("clients.name")}</span>
             <span>{t("clients.dataUsage")}</span>
             <span className="text-center">{t("clients.expiry")}</span>
@@ -46,17 +83,21 @@ export function ClientsTable({ filter, onSelect }: Props) {
               <div className="px-5 py-10 text-center text-sm text-ink-tertiary">{t("clients.noMatch")}</div>
             ) : null}
             {rows.map((c) => {
-              const inbound = inboundMap.get(c.inboundId);
+              const ids = c.inboundIds?.length ? c.inboundIds : [c.inboundId];
+              const inboundLabel = ids.map((id) => inboundMap.get(id)?.remark ?? id).join(", ") || "-";
               const total = c.usedDown + c.usedUp;
               const pct = c.totalQuota > 0 ? (total / c.totalQuota) * 100 : 0;
               return (
                 <Row
                   key={c.id}
                   client={c}
-                  inboundLabel={inbound?.remark ?? "-"}
+                  inboundLabel={inboundLabel}
                   pct={pct}
                   total={total}
                   onSelect={onSelect}
+                  selected={selectedIds.has(c.id)}
+                  selectionDisabled={selectionDisabled}
+                  onToggleSelection={toggleOne}
                 />
               );
             })}
@@ -72,27 +113,53 @@ const Row = memo(function Row({
   inboundLabel,
   pct,
   total,
-  onSelect
+  onSelect,
+  selected,
+  selectionDisabled,
+  onToggleSelection,
 }: {
   client: Client;
   inboundLabel: string;
   pct: number;
   total: number;
   onSelect: (client: Client) => void;
+  selected: boolean;
+  selectionDisabled: boolean;
+  onToggleSelection: (id: string) => void;
 }) {
   const [hover, setHover] = useState(false);
   const { t } = useI18n();
   const handleClick = useCallback(() => onSelect(client), [onSelect, client]);
   const handleEnter = useCallback(() => setHover(true), []);
   const handleLeave = useCallback(() => setHover(false), []);
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect(client);
+    }
+  }, [client, onSelect]);
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
-      className={cn("grid w-full items-center px-5 py-3 text-left transition-colors duration-200", GRID, hover && "bg-elevated")}
+      className={cn(
+        "grid w-full items-center px-5 py-3 text-left transition-colors duration-200",
+        GRID,
+        (hover || selected) && "bg-elevated",
+      )}
     >
+      <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+        <SelectionCheckbox
+          checked={selected}
+          disabled={selectionDisabled}
+          label={t("clients.selectClient", { name: client.name })}
+          onChange={() => onToggleSelection(client.id)}
+        />
+      </span>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <StatusDot state={client.online ? "online" : "neutral"} size={6} />
@@ -115,9 +182,39 @@ const Row = memo(function Row({
       <div className="flex justify-end">
         <StatusBadge status={client.status} />
       </div>
-    </button>
+    </div>
   );
 });
+
+function SelectionCheckbox({
+  checked,
+  indeterminate = false,
+  disabled,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  disabled: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      aria-label={label}
+      onChange={onChange}
+      className="size-4 cursor-pointer rounded border-subtle bg-canvas accent-brand disabled:cursor-not-allowed"
+    />
+  );
+}
 
 function StatusBadge({ status }: { status: Client["status"] }) {
   const { t } = useI18n();

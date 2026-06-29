@@ -81,23 +81,27 @@ test("keeps typed fields when a polling refresh delivers a new inbounds array", 
   expect(screen.getByRole("switch", { name: "clients.enableQuota" })).toHaveAttribute("aria-checked", "true");
 });
 
-test("when the selected inbound disappears, only the inbound selection changes", async () => {
+test("prunes a removed inbound from the multi-selection, preserving other fields", async () => {
   mockInbounds = [IB_A, IB_B];
   const user = userEvent.setup();
   const { rerender } = renderModal(<AddClientModal open onClose={vi.fn()} />);
 
-  // Default selection is the first inbound; switch to the second, then edit name.
-  await user.click(await screen.findByRole("button", { name: "frankfurt" }));
+  // Default selection is the first inbound; open the picker and add the second
+  // (multi-select adds rather than replaces), then edit the name.
+  await user.click(await screen.findByRole("button", { name: /frankfurt/ }));
   await user.click(await screen.findByRole("option", { name: "amsterdam" }));
+  await user.keyboard("{Escape}");
   await user.type(screen.getByPlaceholderText(/vadim_denisych/i), "bob");
 
-  expect(screen.getByRole("button", { name: "amsterdam" })).toBeInTheDocument();
+  // Both inbounds are now selected.
+  expect(screen.getByRole("button", { name: /frankfurt/ })).toHaveTextContent("amsterdam");
 
-  // Poll removes the currently selected inbound (amsterdam).
+  // Poll removes the second inbound (amsterdam).
   mockInbounds = [{ ...IB_A }];
   rerender(<AddClientModal open onClose={vi.fn()} />);
 
-  // Name is preserved; the inbound select falls back to the remaining option.
+  // Name is preserved; amsterdam is pruned from the selection.
   expect(screen.getByPlaceholderText(/vadim_denisych/i)).toHaveValue("bob");
-  expect(await screen.findByRole("button", { name: "frankfurt" })).toBeInTheDocument();
+  const trigger = await screen.findByRole("button", { name: /frankfurt/ });
+  expect(trigger).not.toHaveTextContent("amsterdam");
 });

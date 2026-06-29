@@ -11,13 +11,19 @@ const (
 	ClientStatusExpired  ClientStatus = "expired"
 )
 
-// Client is a single proxy user bound to one inbound. Name is the stable
-// identity used to key per-user traffic statistics, so it is globally unique.
+// Client is a proxy user. Name is the stable identity used to key per-user
+// traffic statistics, so it is globally unique.
+//
+// A local client (NodeID == nil) may be bound to several inbounds at once
+// (SIN-11): InboundIDs holds the full set, sourced from the client_inbounds
+// join table. InboundID is kept as the primary/first binding for backward
+// compatibility and as the single binding used by the remote-node path.
 type Client struct {
 	ID                 int64
 	NodeID             *int64
 	RemoteID           string
 	InboundID          int64
+	InboundIDs         []int64
 	Name               string
 	UUID               string // VLESS credential
 	Password           string // Naive / Hysteria2 credential
