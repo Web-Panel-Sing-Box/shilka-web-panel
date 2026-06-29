@@ -81,6 +81,8 @@ definitions:
         items:
           $ref: '#/definitions/internal_transport_handler.subscriptionLinkDTO'
         type: array
+      qrPng:
+        type: string
       shareLink:
         type: string
       subscription:

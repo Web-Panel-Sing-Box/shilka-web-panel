@@ -53,6 +53,7 @@ const en = {
   "common.local": "Local",
   "common.confirm": "Confirm",
   "common.keepRunning": "Keep running",
+  "common.close": "Close",
 
   "core.stopQuestion": "Are you sure you want to stop the core?",
   "core.stopBody":
@@ -187,6 +188,10 @@ const en = {
   "clients.updateFailed": "Could not update client",
   "clients.linkCopied": "Link copied to clipboard",
   "clients.getQr": "Get QR",
+  "clients.shareQr": "Share QR",
+  "clients.shareQrAlt": "Scannable client share QR code",
+  "clients.qrLoading": "Generating QR code...",
+  "clients.qrLoadFailed": "Could not generate QR code",
   "clients.copyLink": "Copy link",
   "clients.copied": "Copied!",
   "clients.online": "Online",
@@ -356,6 +361,7 @@ const ru: Record<keyof typeof en, string> = {
   "common.local": "Локально",
   "common.confirm": "Подтвердить",
   "common.keepRunning": "Оставить включенным",
+  "common.close": "Закрыть",
 
   "core.stopQuestion": "Вы уверены, что хотите выключить ядро?",
   "core.stopBody":
@@ -491,6 +497,10 @@ const ru: Record<keyof typeof en, string> = {
   "clients.updateFailed": "Не удалось обновить клиента",
   "clients.linkCopied": "Ссылка скопирована",
   "clients.getQr": "Получить QR",
+  "clients.shareQr": "QR для подключения",
+  "clients.shareQrAlt": "Сканируемый QR-код ссылки клиента",
+  "clients.qrLoading": "Создание QR-кода...",
+  "clients.qrLoadFailed": "Не удалось создать QR-код",
   "clients.copyLink": "Скопировать ссылку",
   "clients.copied": "Скопировано!",
   "clients.online": "Онлайн",
