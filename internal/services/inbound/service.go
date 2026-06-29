@@ -79,6 +79,11 @@ type Input struct {
 	AllowInsecure *bool
 	// VLESS multiplex.
 	MultiplexEnabled bool
+	// VLESS transport settings.
+	WSPath          string
+	GRPCServiceName string
+	HTTPUpgradePath string
+	HTTPUpgradeHost string
 	// Hysteria2.
 	Hy2UpMbps                int
 	Hy2DownMbps              int
@@ -106,6 +111,10 @@ func applyTLSMaterial(ib *domain.Inbound, in Input) {
 
 func applyProtocolSettings(ib *domain.Inbound, in Input) {
 	ib.Settings.MultiplexEnabled = in.MultiplexEnabled
+	ib.Settings.WSPath = in.WSPath
+	ib.Settings.GRPCServiceName = in.GRPCServiceName
+	ib.Settings.HTTPUpgradePath = in.HTTPUpgradePath
+	ib.Settings.HTTPUpgradeHost = in.HTTPUpgradeHost
 	ib.Settings.Hy2UpMbps = in.Hy2UpMbps
 	ib.Settings.Hy2DownMbps = in.Hy2DownMbps
 	ib.Settings.Hy2IgnoreClientBandwidth = in.Hy2IgnoreClientBandwidth
@@ -197,7 +206,6 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (*domain.Inbou
 		return nil, fmt.Errorf("%w: remote inbound must be updated through its node", ErrValidation)
 	}
 
-	wasReality := ib.TLS == domain.TLSModeReality
 	ib.Remark = in.Remark
 	ib.Protocol = in.Protocol
 	ib.Port = in.Port
@@ -208,14 +216,11 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (*domain.Inbou
 	applyTLSMaterial(ib, in)
 	applyProtocolSettings(ib, in)
 
-	// (Re)generate Reality material if it was just enabled and is missing.
-	if ib.TLS == domain.TLSModeReality && (!wasReality || ib.Settings.RealityPrivateKey == "") {
-		if err := s.applyGeneratedSettings(ib); err != nil {
-			return nil, err
-		}
+	// Fill missing Reality and transport defaults after protocol, security, or
+	// transport changes. Existing generated values remain stable.
+	if err := s.applyGeneratedSettings(ib); err != nil {
+		return nil, err
 	}
-	// Recompute flow when transport/security changed.
-	ib.Settings.Flow = realityFlow(ib)
 
 	if err := s.repo.Update(ctx, ib); err != nil {
 		return nil, err
@@ -333,6 +338,14 @@ func (s *Service) applyGeneratedSettings(ib *domain.Inbound) error {
 			}
 			ib.Settings.GRPCServiceName = name
 		}
+	case domain.TransmissionHTTPUpgrade:
+		if ib.Settings.HTTPUpgradePath == "" {
+			suffix, err := keys.GenerateShortID()
+			if err != nil {
+				return err
+			}
+			ib.Settings.HTTPUpgradePath = "/" + suffix
+		}
 	}
 	return nil
 }
@@ -353,7 +366,7 @@ func normalizeTransmission(p domain.Protocol, t domain.Transmission) domain.Tran
 		return domain.TransmissionTCP
 	}
 	switch t {
-	case domain.TransmissionTCP, domain.TransmissionWS, domain.TransmissionGRPC:
+	case domain.TransmissionTCP, domain.TransmissionWS, domain.TransmissionGRPC, domain.TransmissionHTTPUpgrade:
 		return t
 	default:
 		return domain.TransmissionTCP

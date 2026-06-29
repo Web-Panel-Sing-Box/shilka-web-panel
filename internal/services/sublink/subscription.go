@@ -150,6 +150,7 @@ type clientOutUTLS struct {
 
 type clientOutTransport struct {
 	Type        string `json:"type"`
+	Host        string `json:"host,omitempty"`
 	Path        string `json:"path,omitempty"`
 	ServiceName string `json:"service_name,omitempty"`
 }
@@ -296,6 +297,12 @@ func clientTransport(ib *domain.Inbound) *clientOutTransport {
 		return &clientOutTransport{Type: "ws", Path: ib.Settings.WSPath}
 	case domain.TransmissionGRPC:
 		return &clientOutTransport{Type: "grpc", ServiceName: ib.Settings.GRPCServiceName}
+	case domain.TransmissionHTTPUpgrade:
+		return &clientOutTransport{
+			Type: "httpupgrade",
+			Host: ib.Settings.HTTPUpgradeHost,
+			Path: ib.Settings.HTTPUpgradePath,
+		}
 	default:
 		return nil
 	}

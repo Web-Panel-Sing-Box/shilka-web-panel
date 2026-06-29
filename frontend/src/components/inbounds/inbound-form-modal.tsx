@@ -66,39 +66,48 @@ export function InboundFormModal({ open, mode = "create", inbound, onClose, onCl
         return (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label>Path</Label>
-              <Input placeholder="/ws" mono />
+              <Label>{t("inbounds.transportPath")}</Label>
+              <Input value={f.wsPath} onChange={(e) => f.setWsPath(e.target.value)} placeholder="/ws" mono />
             </div>
             <div>
-              <Label>Host</Label>
-              <Input placeholder="panel.example" mono />
+              <Label>{t("inbounds.transportHost")}</Label>
+              <Input value={f.sni} readOnly placeholder="panel.example" mono />
             </div>
           </div>
         );
       case "grpc":
         return (
           <div>
-            <Label>Service name</Label>
-            <Input placeholder="grpc-svc" mono />
+            <Label>{t("inbounds.grpcServiceName")}</Label>
+            <Input value={f.grpcServiceName} onChange={(e) => f.setGrpcServiceName(e.target.value)} placeholder="grpc-svc" mono />
           </div>
         );
       case "httpupgrade":
         return (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label>Path</Label>
-              <Input placeholder="/up" mono />
+              <Label>{t("inbounds.transportPath")}</Label>
+              <Input value={f.httpUpgradePath} onChange={(e) => f.setHttpUpgradePath(e.target.value)} placeholder="/up" mono />
             </div>
             <div>
-              <Label>Host</Label>
-              <Input placeholder="panel.example" mono />
+              <Label>{t("inbounds.transportHost")}</Label>
+              <Input value={f.httpUpgradeHost} onChange={(e) => f.setHttpUpgradeHost(e.target.value)} placeholder="panel.example" mono />
             </div>
           </div>
         );
       default:
         return null; // tcp / raw
     }
-  }, [f.protocol, f.transmission]);
+  }, [
+    f.protocol,
+    f.transmission,
+    f.wsPath,
+    f.grpcServiceName,
+    f.httpUpgradePath,
+    f.httpUpgradeHost,
+    f.sni,
+    t,
+  ]);
 
   // Second column of the "traffic reset" row: transport (vless) / network (naive) / QUIC (hysteria2).
   const connectionControl = isVless ? (

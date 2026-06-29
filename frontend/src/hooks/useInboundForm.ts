@@ -64,6 +64,10 @@ export function useInboundForm({ open, mode, inbound, onClose }: Params) {
 
   // vless transport
   const [transmission, setTransmission] = useState<Transmission>(DEFAULT_TRANSMISSION);
+  const [wsPath, setWsPath] = useState("");
+  const [grpcServiceName, setGrpcServiceName] = useState("");
+  const [httpUpgradePath, setHttpUpgradePath] = useState("");
+  const [httpUpgradeHost, setHttpUpgradeHost] = useState("");
 
   const [sniffing, setSniffing] = useState(true);
   const [snifHttp, setSnifHttp] = useState(true);
@@ -115,6 +119,10 @@ export function useInboundForm({ open, mode, inbound, onClose }: Params) {
     setPort(mode === "clone" ? randomPort() : (inbound?.port ?? randomPort()));
     setTrafficReset("never");
     setTransmission(inbound?.transmission ?? DEFAULT_TRANSMISSION);
+    setWsPath(s?.wsPath ?? "");
+    setGrpcServiceName(s?.grpcServiceName ?? "");
+    setHttpUpgradePath(s?.httpUpgradePath ?? "");
+    setHttpUpgradeHost(s?.httpUpgradeHost ?? "");
     setTls(tlsForProtocol(nextProtocol, inbound?.tls ?? "none"));
     setSni(inbound?.sni ?? "www.cloudflare.com");
     setDest(inbound?.dest ?? "www.cloudflare.com:443");
@@ -190,6 +198,10 @@ export function useInboundForm({ open, mode, inbound, onClose }: Params) {
         sni: tls === "none" ? undefined : sni,
         dest: tls === "reality" ? dest : undefined,
         allowInsecure: tls === "tls" ? allowInsecure : undefined,
+        wsPath: transmission === "ws" ? wsPath.trim() || undefined : undefined,
+        grpcServiceName: transmission === "grpc" ? grpcServiceName.trim() || undefined : undefined,
+        httpUpgradePath: transmission === "httpupgrade" ? httpUpgradePath.trim() || undefined : undefined,
+        httpUpgradeHost: transmission === "httpupgrade" ? httpUpgradeHost.trim() || undefined : undefined,
         ...(tls === "tls" ? tlsCertFields() : {}),
       };
     }
@@ -223,6 +235,10 @@ export function useInboundForm({ open, mode, inbound, onClose }: Params) {
     protocol,
     port,
     transmission,
+    wsPath,
+    grpcServiceName,
+    httpUpgradePath,
+    httpUpgradeHost,
     tls,
     sni,
     dest,
@@ -296,6 +312,10 @@ export function useInboundForm({ open, mode, inbound, onClose }: Params) {
     port, setPort,
     trafficReset, setTrafficReset,
     transmission, setTransmission,
+    wsPath, setWsPath,
+    grpcServiceName, setGrpcServiceName,
+    httpUpgradePath, setHttpUpgradePath,
+    httpUpgradeHost, setHttpUpgradeHost,
     sniffing, setSniffing,
     snifHttp, setSnifHttp,
     snifTls, setSnifTls,

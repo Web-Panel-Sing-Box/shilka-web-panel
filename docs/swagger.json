@@ -2154,6 +2154,15 @@
                 "dest": {
                     "type": "string"
                 },
+                "grpcServiceName": {
+                    "type": "string"
+                },
+                "httpUpgradeHost": {
+                    "type": "string"
+                },
+                "httpUpgradePath": {
+                    "type": "string"
+                },
                 "hy2BbrProfile": {
                     "type": "string"
                 },
@@ -2219,6 +2228,10 @@
                 },
                 "transmission": {
                     "type": "string"
+                },
+                "wsPath": {
+                    "description": "VLESS transport settings.",
+                    "type": "string"
                 }
             }
         },
@@ -2243,6 +2256,12 @@
                     "type": "string"
                 },
                 "grpcServiceName": {
+                    "type": "string"
+                },
+                "httpUpgradeHost": {
+                    "type": "string"
+                },
+                "httpUpgradePath": {
                     "type": "string"
                 },
                 "hy2BbrProfile": {

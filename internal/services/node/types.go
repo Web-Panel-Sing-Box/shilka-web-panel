@@ -47,18 +47,22 @@ type RemoteInbound struct {
 }
 
 type RemoteInboundRequest struct {
-	Remark        string `json:"remark"`
-	Protocol      string `json:"protocol"`
-	Port          int    `json:"port"`
-	Transmission  string `json:"transmission"`
-	TLS           string `json:"tls"`
-	SNI           string `json:"sni"`
-	Dest          string `json:"dest"`
-	ACMEDomain    string `json:"acmeDomain,omitempty"`
-	ACMEEmail     string `json:"acmeEmail,omitempty"`
-	CertPath      string `json:"certPath,omitempty"`
-	KeyPath       string `json:"keyPath,omitempty"`
-	AllowInsecure *bool  `json:"allowInsecure,omitempty"`
+	Remark          string `json:"remark"`
+	Protocol        string `json:"protocol"`
+	Port            int    `json:"port"`
+	Transmission    string `json:"transmission"`
+	TLS             string `json:"tls"`
+	SNI             string `json:"sni"`
+	Dest            string `json:"dest"`
+	ACMEDomain      string `json:"acmeDomain,omitempty"`
+	ACMEEmail       string `json:"acmeEmail,omitempty"`
+	CertPath        string `json:"certPath,omitempty"`
+	KeyPath         string `json:"keyPath,omitempty"`
+	AllowInsecure   *bool  `json:"allowInsecure,omitempty"`
+	WSPath          string `json:"wsPath,omitempty"`
+	GRPCServiceName string `json:"grpcServiceName,omitempty"`
+	HTTPUpgradePath string `json:"httpUpgradePath,omitempty"`
+	HTTPUpgradeHost string `json:"httpUpgradeHost,omitempty"`
 
 	MultiplexEnabled bool `json:"multiplexEnabled,omitempty"`
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { networkFromApi, networkToApi } from "./types";
+import { networkFromApi, networkToApi, TRANSMISSION_OPTIONS } from "./types";
 
 describe("Naive network conversion", () => {
   test("maps API empty or unknown values to the UI auto mode", () => {
@@ -14,4 +14,8 @@ describe("Naive network conversion", () => {
     expect(networkToApi("tcp")).toBe("tcp");
     expect(networkToApi("udp")).toBe("udp");
   });
+});
+
+test("exposes HTTPUpgrade as a VLESS transport", () => {
+  expect(TRANSMISSION_OPTIONS).toContainEqual({ value: "httpupgrade", label: "HTTPUpgrade" });
 });
