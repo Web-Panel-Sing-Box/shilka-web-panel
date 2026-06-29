@@ -74,6 +74,7 @@ export type ClientLinksDTO = {
   link: string;
   shareLink: string;
   subscription: string;
+  qrPng: string;
   links: ClientLink[];
 };
 
@@ -81,6 +82,7 @@ type ClientLinksResponse = {
   link?: string;
   shareLink?: string;
   subscription: string;
+  qrPng?: string;
   links?: ClientLink[];
 };
 
@@ -141,6 +143,7 @@ export async function getClientLinks(id: string): Promise<ClientLinksDTO> {
     link: links.link ?? shareLink,
     shareLink,
     subscription: links.subscription,
+    qrPng: links.qrPng ?? "",
     links: links.links ?? [],
   };
 }

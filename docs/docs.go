@@ -1963,6 +1963,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/internal_transport_handler.subscriptionLinkDTO"
                     }
                 },
+                "qrPng": {
+                    "type": "string"
+                },
                 "shareLink": {
                     "type": "string"
                 },
