@@ -95,12 +95,12 @@ type sbVLESSUser struct {
 }
 
 type sbHysteria2Inbound struct {
-	Type       string             `json:"type"`
-	Tag        string             `json:"tag"`
-	Listen     string             `json:"listen"`
-	ListenPort int                `json:"listen_port"`
-	Users      []sbHysteria2User  `json:"users"`
-	TLS        *sbInboundTLS      `json:"tls,omitempty"`
+	Type       string            `json:"type"`
+	Tag        string            `json:"tag"`
+	Listen     string            `json:"listen"`
+	ListenPort int               `json:"listen_port"`
+	Users      []sbHysteria2User `json:"users"`
+	TLS        *sbInboundTLS     `json:"tls,omitempty"`
 
 	UpMbps                int              `json:"up_mbps,omitempty"`
 	DownMbps              int              `json:"down_mbps,omitempty"`
@@ -125,12 +125,12 @@ type sbHysteria2User struct {
 }
 
 type sbNaiveInbound struct {
-	Type       string         `json:"type"`
-	Tag        string         `json:"tag"`
-	Listen     string         `json:"listen"`
-	ListenPort int            `json:"listen_port"`
-	Users      []sbNaiveUser  `json:"users"`
-	TLS        *sbInboundTLS  `json:"tls"`
+	Type       string        `json:"type"`
+	Tag        string        `json:"tag"`
+	Listen     string        `json:"listen"`
+	ListenPort int           `json:"listen_port"`
+	Users      []sbNaiveUser `json:"users"`
+	TLS        *sbInboundTLS `json:"tls"`
 
 	Network               string `json:"network,omitempty"`
 	QuicCongestionControl string `json:"quic_congestion_control,omitempty"`
@@ -170,6 +170,7 @@ type sbHandshake struct {
 
 type sbTransport struct {
 	Type        string `json:"type"`
+	Host        string `json:"host,omitempty"`
 	Path        string `json:"path,omitempty"`
 	ServiceName string `json:"service_name,omitempty"`
 }

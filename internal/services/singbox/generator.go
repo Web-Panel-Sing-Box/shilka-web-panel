@@ -214,18 +214,18 @@ func (g *Generator) buildInbound(ib *domain.Inbound, clients []domain.Client) (a
 			users = append(users, sbHysteria2User{Name: c.Name, Password: c.Password})
 		}
 		hy2 := sbHysteria2Inbound{
-			Type:                   "hysteria2",
-			Tag:                    tag,
-			Listen:                 g.cfg.InboundListen,
-			ListenPort:             ib.Port,
-			Users:                  users,
-			TLS:                    g.buildTLS(ib, []string{"h3"}),
-			UpMbps:                 ib.Settings.Hy2UpMbps,
-			DownMbps:               ib.Settings.Hy2DownMbps,
-			IgnoreClientBandwidth:  ib.Settings.Hy2IgnoreClientBandwidth,
-			Network:                ib.Settings.Hy2Network,
-			BrutalDebug:            ib.Settings.Hy2BrutalDebug,
-			BBRProfile:             ib.Settings.Hy2BbrProfile,
+			Type:                  "hysteria2",
+			Tag:                   tag,
+			Listen:                g.cfg.InboundListen,
+			ListenPort:            ib.Port,
+			Users:                 users,
+			TLS:                   g.buildTLS(ib, []string{"h3"}),
+			UpMbps:                ib.Settings.Hy2UpMbps,
+			DownMbps:              ib.Settings.Hy2DownMbps,
+			IgnoreClientBandwidth: ib.Settings.Hy2IgnoreClientBandwidth,
+			Network:               ib.Settings.Hy2Network,
+			BrutalDebug:           ib.Settings.Hy2BrutalDebug,
+			BBRProfile:            ib.Settings.Hy2BbrProfile,
 		}
 		if ib.Settings.Hy2ObfsPassword != "" {
 			hy2.Obfs = &sbHysteria2Obfs{
@@ -267,6 +267,12 @@ func buildTransport(ib *domain.Inbound) *sbTransport {
 		return &sbTransport{Type: "ws", Path: ib.Settings.WSPath}
 	case domain.TransmissionGRPC:
 		return &sbTransport{Type: "grpc", ServiceName: ib.Settings.GRPCServiceName}
+	case domain.TransmissionHTTPUpgrade:
+		return &sbTransport{
+			Type: "httpupgrade",
+			Host: ib.Settings.HTTPUpgradeHost,
+			Path: ib.Settings.HTTPUpgradePath,
+		}
 	default:
 		return nil
 	}

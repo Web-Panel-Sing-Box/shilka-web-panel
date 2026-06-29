@@ -105,6 +105,49 @@ func TestCreateNaiveNormalizesBothNetwork(t *testing.T) {
 	}
 }
 
+func TestCreateHTTPUpgradePreservesSettingsAndGeneratesDefaultPath(t *testing.T) {
+	svc := newService()
+	ib, err := svc.Create(context.Background(), svcinbound.Input{
+		Remark: "upgrade", Protocol: domain.ProtocolVLESS, Port: 8080,
+		Transmission: domain.TransmissionHTTPUpgrade, TLS: domain.TLSModeNone,
+		HTTPUpgradeHost: "edge.example.com",
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if ib.Transmission != domain.TransmissionHTTPUpgrade {
+		t.Fatalf("transmission = %q, want httpupgrade", ib.Transmission)
+	}
+	if ib.Settings.HTTPUpgradeHost != "edge.example.com" {
+		t.Fatalf("host = %q", ib.Settings.HTTPUpgradeHost)
+	}
+	if len(ib.Settings.HTTPUpgradePath) < 2 || ib.Settings.HTTPUpgradePath[0] != '/' {
+		t.Fatalf("generated path = %q, want /<short-id>", ib.Settings.HTTPUpgradePath)
+	}
+}
+
+func TestUpdateToHTTPUpgradeGeneratesDefaultPath(t *testing.T) {
+	repo := newFakeRepo()
+	svc := svcinbound.NewService(repo, fakeCounter{}, nil)
+	ib, err := svc.Create(context.Background(), svcinbound.Input{
+		Remark: "tcp", Protocol: domain.ProtocolVLESS, Port: 8080,
+		Transmission: domain.TransmissionTCP, TLS: domain.TLSModeNone,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	updated, err := svc.Update(context.Background(), ib.ID, svcinbound.Input{
+		Remark: "upgrade", Protocol: domain.ProtocolVLESS, Port: 8080,
+		Transmission: domain.TransmissionHTTPUpgrade, TLS: domain.TLSModeNone,
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if len(updated.Settings.HTTPUpgradePath) < 2 || updated.Settings.HTTPUpgradePath[0] != '/' {
+		t.Fatalf("generated path = %q", updated.Settings.HTTPUpgradePath)
+	}
+}
+
 func TestCreateTLSAllowInsecureAutoMode(t *testing.T) {
 	svc := newService()
 	ib, err := svc.Create(context.Background(), svcinbound.Input{

@@ -68,6 +68,13 @@ func buildVLESS(ib *domain.Inbound, c *domain.Client, host, port string) string 
 			q.Set("serviceName", ib.Settings.GRPCServiceName)
 		}
 		q.Set("mode", "gun")
+	case domain.TransmissionHTTPUpgrade:
+		if ib.Settings.HTTPUpgradePath != "" {
+			q.Set("path", ib.Settings.HTTPUpgradePath)
+		}
+		if ib.Settings.HTTPUpgradeHost != "" {
+			q.Set("host", ib.Settings.HTTPUpgradeHost)
+		}
 	}
 
 	u := url.URL{

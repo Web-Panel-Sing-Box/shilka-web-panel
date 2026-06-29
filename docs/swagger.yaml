@@ -208,6 +208,12 @@ definitions:
         type: string
       dest:
         type: string
+      grpcServiceName:
+        type: string
+      httpUpgradeHost:
+        type: string
+      httpUpgradePath:
+        type: string
       hy2BbrProfile:
         type: string
       hy2BrutalDebug:
@@ -253,6 +259,9 @@ definitions:
         type: string
       transmission:
         type: string
+      wsPath:
+        description: VLESS transport settings.
+        type: string
     type: object
   internal_transport_handler.inboundSettingsDTO:
     properties:
@@ -271,6 +280,10 @@ definitions:
       flow:
         type: string
       grpcServiceName:
+        type: string
+      httpUpgradeHost:
+        type: string
+      httpUpgradePath:
         type: string
       hy2BbrProfile:
         type: string

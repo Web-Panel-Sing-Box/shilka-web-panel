@@ -2157,6 +2157,15 @@ const docTemplate = `{
                 "dest": {
                     "type": "string"
                 },
+                "grpcServiceName": {
+                    "type": "string"
+                },
+                "httpUpgradeHost": {
+                    "type": "string"
+                },
+                "httpUpgradePath": {
+                    "type": "string"
+                },
                 "hy2BbrProfile": {
                     "type": "string"
                 },
@@ -2222,6 +2231,10 @@ const docTemplate = `{
                 },
                 "transmission": {
                     "type": "string"
+                },
+                "wsPath": {
+                    "description": "VLESS transport settings.",
+                    "type": "string"
                 }
             }
         },
@@ -2246,6 +2259,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "grpcServiceName": {
+                    "type": "string"
+                },
+                "httpUpgradeHost": {
+                    "type": "string"
+                },
+                "httpUpgradePath": {
                     "type": "string"
                 },
                 "hy2BbrProfile": {

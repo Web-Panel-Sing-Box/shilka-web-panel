@@ -78,3 +78,29 @@ test("sends nodeId when creating an inbound on a remote node", async () => {
     }),
   );
 });
+
+test("sends controlled HTTPUpgrade path and host", async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<InboundFormModal open onClose={vi.fn()} />, { seed: { inbounds: [] } });
+
+  await user.click(screen.getByRole("button", { name: "Naive Proxy" }));
+  await user.click(screen.getByRole("option", { name: "VLESS" }));
+  await user.click(screen.getByRole("button", { name: "TCP (RAW)" }));
+  await user.click(screen.getByRole("option", { name: "HTTPUpgrade" }));
+
+  await user.type(screen.getByPlaceholderText("e.g. vadim-vless#0001"), "vless-upgrade");
+  await user.type(screen.getByPlaceholderText("/up"), "/upgrade");
+  const hostFields = screen.getAllByPlaceholderText("panel.example");
+  await user.type(hostFields[hostFields.length - 1], "edge.example.com");
+  await user.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => expect(api.createInbound).toHaveBeenCalledTimes(1));
+  expect(api.createInbound).toHaveBeenCalledWith(
+    expect.objectContaining({
+      protocol: "vless",
+      transmission: "httpupgrade",
+      httpUpgradePath: "/upgrade",
+      httpUpgradeHost: "edge.example.com",
+    }),
+  );
+});

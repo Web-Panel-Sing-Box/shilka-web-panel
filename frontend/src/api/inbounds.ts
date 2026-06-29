@@ -9,6 +9,8 @@ export type InboundSettings = {
   flow?: string;
   wsPath?: string;
   grpcServiceName?: string;
+  httpUpgradePath?: string;
+  httpUpgradeHost?: string;
   multiplexEnabled?: boolean;
   // Hysteria2
   hy2UpMbps?: number;
@@ -64,6 +66,10 @@ export type InboundCreateRequest = {
   certPath?: string;
   keyPath?: string;
   multiplexEnabled?: boolean;
+  wsPath?: string;
+  grpcServiceName?: string;
+  httpUpgradePath?: string;
+  httpUpgradeHost?: string;
   // Hysteria2
   hy2UpMbps?: number;
   hy2DownMbps?: number;
