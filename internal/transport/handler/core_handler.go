@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 
+	"sing-box-web-panel/internal/domain"
 	"sing-box-web-panel/internal/services/singbox"
 )
 
@@ -15,10 +16,15 @@ type CoreHandler struct {
 	applier     *singbox.Applier
 	log         *slog.Logger
 	coreLogPath string
+	notifier    singbox.FailureNotifier
 }
 
-func NewCoreHandler(pm singbox.ProcessManager, applier *singbox.Applier, log *slog.Logger, coreLogPath string) *CoreHandler {
-	return &CoreHandler{pm: pm, applier: applier, log: log, coreLogPath: coreLogPath}
+func NewCoreHandler(pm singbox.ProcessManager, applier *singbox.Applier, log *slog.Logger, coreLogPath string, notifiers ...singbox.FailureNotifier) *CoreHandler {
+	h := &CoreHandler{pm: pm, applier: applier, log: log, coreLogPath: coreLogPath}
+	if len(notifiers) > 0 {
+		h.notifier = notifiers[0]
+	}
+	return h
 }
 
 func (h *CoreHandler) Register(mux *http.ServeMux) {
@@ -51,7 +57,7 @@ type coreStatusDTO struct {
 func (h *CoreHandler) Status(w http.ResponseWriter, r *http.Request) {
 	st, err := h.pm.Status(r.Context())
 	if err != nil {
-		h.log.Error("core status", slog.String("error", err.Error()))
+		h.log.Error("core status", slog.String("error", h.safeError(r, err.Error())))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
@@ -60,14 +66,18 @@ func (h *CoreHandler) Status(w http.ResponseWriter, r *http.Request) {
 		PID:           st.PID,
 		Version:       st.Version,
 		UptimeSeconds: int64(st.Uptime.Seconds()),
-		LastError:     st.LastError,
+		LastError:     h.safeError(r, st.LastError),
 	})
 }
 
 func (h *CoreHandler) action(w http.ResponseWriter, r *http.Request, op string, fn func() error) {
 	if err := fn(); err != nil {
-		h.log.Error("core "+op, slog.String("error", err.Error()))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		safe := h.safeError(r, err.Error())
+		h.log.Error("core "+op, slog.String("error", safe))
+		if h.notifier != nil {
+			h.notifier.NotifyFailure(r.Context(), coreEvent(op), err)
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": safe})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"message": op + " ok"})
@@ -84,8 +94,12 @@ func (h *CoreHandler) action(w http.ResponseWriter, r *http.Request, op string, 
 //	@Router		/core/start [post]
 func (h *CoreHandler) Start(w http.ResponseWriter, r *http.Request) {
 	if err := h.applier.ApplyIfMissing(r.Context()); err != nil {
-		h.log.Error("core start: apply config", slog.String("error", err.Error()))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "apply config: " + err.Error()})
+		safe := h.safeError(r, err.Error())
+		h.log.Error("core start: apply config", slog.String("error", safe))
+		if h.notifier != nil {
+			h.notifier.NotifyFailure(r.Context(), domain.NotificationEventStart, err)
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "apply config: " + safe})
 		return
 	}
 	h.action(w, r, "start", func() error { return h.pm.Start(r.Context()) })
@@ -127,10 +141,31 @@ func (h *CoreHandler) Restart(w http.ResponseWriter, r *http.Request) {
 //	@Router		/core/reload [post]
 func (h *CoreHandler) Reload(w http.ResponseWriter, r *http.Request) {
 	if err := h.applier.Apply(r.Context()); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		if h.notifier != nil {
+			h.notifier.NotifyFailure(r.Context(), domain.NotificationEventReload, err)
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": h.safeError(r, err.Error())})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"message": "config applied"})
+}
+
+func coreEvent(op string) string {
+	switch op {
+	case "start":
+		return domain.NotificationEventStart
+	case "stop":
+		return domain.NotificationEventStop
+	default:
+		return domain.NotificationEventRestart
+	}
+}
+
+func (h *CoreHandler) safeError(r *http.Request, text string) string {
+	if redactor, ok := h.notifier.(singbox.ErrorRedactor); ok {
+		return redactor.RedactError(r.Context(), text)
+	}
+	return text
 }
 
 // Version godoc

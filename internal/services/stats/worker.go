@@ -27,6 +27,10 @@ type ConfigTrigger interface {
 	Trigger()
 }
 
+type ClientObserver interface {
+	ObserveClient(ctx context.Context, client domain.Client, now time.Time) error
+}
+
 // UserHeartbeat reports the last time each tracked user produced any activity.
 // Worker mirrors those timestamps onto clients.last_used_at so the 5-min
 // online threshold in the handler decays naturally once the client goes
@@ -50,12 +54,13 @@ type Worker struct {
 	clients   ClientStore
 	rollup    RollupStore
 	trigger   ConfigTrigger
+	observer  ClientObserver
 	holder    *LiveHolder
 	cfg       WorkerConfig
 	log       *slog.Logger
 }
 
-func NewWorker(live LiveSource, users UserSource, heartbeat UserHeartbeat, clients ClientStore, rollup RollupStore, trigger ConfigTrigger, holder *LiveHolder, cfg WorkerConfig, log *slog.Logger) *Worker {
+func NewWorker(live LiveSource, users UserSource, heartbeat UserHeartbeat, clients ClientStore, rollup RollupStore, trigger ConfigTrigger, holder *LiveHolder, cfg WorkerConfig, log *slog.Logger, observers ...ClientObserver) *Worker {
 	if cfg.SampleInterval <= 0 {
 		cfg.SampleInterval = 2 * time.Second
 	}
@@ -65,11 +70,15 @@ func NewWorker(live LiveSource, users UserSource, heartbeat UserHeartbeat, clien
 	if cfg.FlushInterval <= 0 {
 		cfg.FlushInterval = 5 * time.Second
 	}
-	return &Worker{
+	worker := &Worker{
 		live: live, users: users, heartbeat: heartbeat,
 		clients: clients, rollup: rollup,
 		trigger: trigger, holder: holder, cfg: cfg, log: log,
 	}
+	if len(observers) > 0 {
+		worker.observer = observers[0]
+	}
+	return worker
 }
 
 // Run launches the worker loops and returns when ctx is cancelled.
@@ -126,6 +135,11 @@ func (w *Worker) enforce(ctx context.Context) {
 		c := list[i]
 		if !c.Enabled || c.Status != domain.ClientStatusActive {
 			continue
+		}
+		if w.observer != nil {
+			if err := w.observer.ObserveClient(ctx, c, now); err != nil {
+				w.log.Warn("observe client notification", slog.Int64("id", c.ID), slog.String("error", err.Error()))
+			}
 		}
 		if c.IsExpired(now) || c.QuotaExceeded() {
 			if err := w.clients.SetStatus(ctx, c.ID, domain.ClientStatusExpired, false); err != nil {
