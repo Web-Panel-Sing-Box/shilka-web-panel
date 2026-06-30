@@ -20,6 +20,14 @@ type RevisionRecorder interface {
 	Create(ctx context.Context, rev *domain.ConfigRevision) error
 }
 
+type FailureNotifier interface {
+	NotifyFailure(ctx context.Context, eventType string, cause error)
+}
+
+type ErrorRedactor interface {
+	RedactError(ctx context.Context, text string) string
+}
+
 const maxConfigBackups = 5
 
 // Applier renders, validates and applies the live sing-box config. It also
@@ -32,6 +40,7 @@ type Applier struct {
 	revs       RevisionRecorder
 	configPath string
 	log        *slog.Logger
+	notifier   FailureNotifier
 
 	mu sync.Mutex // serializes Apply
 
@@ -39,8 +48,8 @@ type Applier struct {
 	debounce  time.Duration
 }
 
-func NewApplier(gen *Generator, checker *Checker, pm ProcessManager, revs RevisionRecorder, configPath string, log *slog.Logger) *Applier {
-	return &Applier{
+func NewApplier(gen *Generator, checker *Checker, pm ProcessManager, revs RevisionRecorder, configPath string, log *slog.Logger, notifiers ...FailureNotifier) *Applier {
+	a := &Applier{
 		gen:        gen,
 		checker:    checker,
 		pm:         pm,
@@ -50,6 +59,10 @@ func NewApplier(gen *Generator, checker *Checker, pm ProcessManager, revs Revisi
 		triggerCh:  make(chan struct{}, 1),
 		debounce:   800 * time.Millisecond,
 	}
+	if len(notifiers) > 0 {
+		a.notifier = notifiers[0]
+	}
+	return a
 }
 
 // Preview renders the config without validating or applying it.
@@ -73,7 +86,7 @@ func (a *Applier) ApplyIfMissing(ctx context.Context) error {
 	if _, err := os.Stat(a.configPath); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("check config path: %w", err)
+		return a.failure(ctx, domain.NotificationEventApply, fmt.Errorf("check config path: %w", err))
 	}
 	a.log.Info("initial config not found, applying first config")
 	return a.Apply(ctx)
@@ -91,7 +104,7 @@ func (a *Applier) Run(ctx context.Context) {
 				return
 			}
 			if err := a.Apply(ctx); err != nil {
-				a.log.Error("apply config", slog.String("error", err.Error()))
+				a.log.Error("apply config", slog.String("error", a.safeError(ctx, err.Error())))
 			}
 		}
 	}
@@ -127,43 +140,60 @@ func (a *Applier) Apply(ctx context.Context) error {
 
 	data, err := a.gen.Render(ctx)
 	if err != nil {
-		return err
+		return a.failure(ctx, domain.NotificationEventApply, err)
 	}
 	sum := sha256.Sum256(data)
 	sha := hex.EncodeToString(sum[:])
 
 	if err := os.MkdirAll(filepath.Dir(a.configPath), 0o750); err != nil {
-		return fmt.Errorf("create config dir: %w", err)
+		return a.failure(ctx, domain.NotificationEventApply, fmt.Errorf("create config dir: %w", err))
 	}
 
 	tmp := a.configPath + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o640); err != nil {
-		return fmt.Errorf("write temp config: %w", err)
+		return a.failure(ctx, domain.NotificationEventApply, fmt.Errorf("write temp config: %w", err))
 	}
 
 	if err := a.checker.Check(ctx, tmp); err != nil {
 		os.Remove(tmp)
-		a.record(ctx, sha, false, err.Error())
-		return err
+		a.record(ctx, sha, false, a.safeError(ctx, err.Error()))
+		return a.failure(ctx, domain.NotificationEventCheck, err)
 	}
 
 	a.backupCurrent()
 	if err := os.Rename(tmp, a.configPath); err != nil {
-		a.record(ctx, sha, false, err.Error())
-		return fmt.Errorf("install config: %w", err)
+		a.record(ctx, sha, false, a.safeError(ctx, err.Error()))
+		return a.failure(ctx, domain.NotificationEventApply, fmt.Errorf("install config: %w", err))
 	}
 
 	// Reload only if the core is already running; otherwise the freshly written
 	// config will be picked up on the next explicit Start.
 	if st, err := a.pm.Status(ctx); err == nil && st.Running {
 		if err := a.pm.Reload(ctx); err != nil {
-			a.log.Warn("reload after apply failed", slog.String("error", err.Error()))
+			a.log.Warn("reload after apply failed", slog.String("error", a.safeError(ctx, err.Error())))
+			if a.notifier != nil {
+				a.notifier.NotifyFailure(ctx, domain.NotificationEventReload, err)
+			}
 		}
 	}
 
 	a.record(ctx, sha, true, "")
 	a.log.Info("config applied", slog.String("sha256", sha[:12]))
 	return nil
+}
+
+func (a *Applier) failure(ctx context.Context, eventType string, err error) error {
+	if a.notifier != nil {
+		a.notifier.NotifyFailure(ctx, eventType, err)
+	}
+	return err
+}
+
+func (a *Applier) safeError(ctx context.Context, text string) string {
+	if redactor, ok := a.notifier.(ErrorRedactor); ok {
+		return redactor.RedactError(ctx, text)
+	}
+	return text
 }
 
 func (a *Applier) record(ctx context.Context, sha string, ok bool, errMsg string) {

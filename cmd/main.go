@@ -39,6 +39,7 @@ import (
 	svcinbound "sing-box-web-panel/internal/services/inbound"
 	"sing-box-web-panel/internal/services/logbuf"
 	svcnode "sing-box-web-panel/internal/services/node"
+	"sing-box-web-panel/internal/services/notification"
 	"sing-box-web-panel/internal/services/scheduler"
 	svcsettings "sing-box-web-panel/internal/services/settings"
 	"sing-box-web-panel/internal/services/singbox"
@@ -134,6 +135,9 @@ func runServer() {
 	nodeRepo := sqliterepo.NewNodeRepo(storage)
 	configRevRepo := sqliterepo.NewConfigRevisionRepo(storage)
 	settingRepo := sqliterepo.NewSettingRepo(storage)
+	notificationRepo := sqliterepo.NewNotificationRepo(storage)
+	notificationSvc := notification.New(notificationRepo, nil, nil, log)
+	go notificationSvc.Run(rootCtx)
 
 	// Seed defaults for known settings so the panel always has sane values.
 	seedSetting(context.Background(), settingRepo, domain.SettingPanelName, "Shilka")
@@ -188,13 +192,14 @@ func runServer() {
 		ServiceName:  cfg.SingBox.ServiceName,
 		RestartDelay: cfg.SingBox.RestartDelay,
 	}, logBuf.Writer(), log)
-	applier := singbox.NewApplier(generator, checker, processMgr, configRevRepo, absConfigPath, log)
+	applier := singbox.NewApplier(generator, checker, processMgr, configRevRepo, absConfigPath, log, notificationSvc)
 	go applier.Run(rootCtx)
 
 	log.Debug("starting sing-box core")
 	// Bootstrap the initial config and start the core automatically.
 	if err := bootCore(context.Background(), applier, processMgr, log); err != nil {
 		log.Warn("boot core", sl.Error(err))
+		notificationSvc.NotifyFailure(context.Background(), domain.NotificationEventStart, err)
 	}
 
 	// Inbound and client management; the applier is the (debounced) ConfigTrigger.
@@ -295,18 +300,19 @@ func runServer() {
 	statsWorker := stats.NewWorker(clashSource, userSource, heartbeat, clientRepo, trafficRepo, applier, liveHolder, stats.WorkerConfig{
 		SampleInterval: cfg.Metrics.TrafficInterval,
 		FlushInterval:  cfg.Metrics.BatchFlushInterval,
-	}, log)
+	}, log, notificationSvc)
 	statsWorker.Run(rootCtx)
 
 	handler.NewInboundHandler(inboundSvc, log, nodeSvc).Register(mux)
 	handler.NewClientHandler(clientSvc, cfg.Sub.PublicURL, log, nodeSvc).Register(mux)
 	handler.NewAPITokenHandler(apiTokenSvc, log).Register(mux)
-	handler.NewCoreHandler(processMgr, applier, log, absCoreLogPath).Register(mux)
+	handler.NewCoreHandler(processMgr, applier, log, absCoreLogPath, notificationSvc).Register(mux)
 	handler.NewNodeHandler(nodeSvc, inboundSvc, clientSvc, sysReader, processMgr, log).Register(mux)
 	handler.NewSubscriptionHandler(clientRepo, inboundRepo, settingRepo, cfg.Sub.PublicURL, "", log).Register(mux)
 	handler.NewDashboardHandler(sysReader, liveHolder, clientRepo, inboundRepo, trafficRepo, processMgr, log).Register(mux)
 	handler.NewLogsHandler(logBuf).Register(mux)
 	handler.NewSettingsHandler(settingSvc, log).Register(mux)
+	handler.NewNotificationHandler(notificationSvc, log).Register(mux)
 	handler.NewSchedulerHandler(schedulerSvc, log).Register(mux)
 	updateSvc := updater.New(updater.Config{
 		Repo:           cfg.Updates.Repo,

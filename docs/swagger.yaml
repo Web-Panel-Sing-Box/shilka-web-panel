@@ -414,6 +414,11 @@ definitions:
       uptimeSeconds:
         type: integer
     type: object
+  internal_transport_handler.notificationTestRequest:
+    properties:
+      channel:
+        type: string
+    type: object
   internal_transport_handler.panelVersionDTO:
     properties:
       checkedAt:
@@ -491,6 +496,117 @@ definitions:
         type: string
       totalQuota:
         type: integer
+    type: object
+  sing-box-web-panel_internal_services_notification.LastTestView:
+    properties:
+      at:
+        type: string
+      channel:
+        type: string
+      message:
+        type: string
+      ok:
+        type: boolean
+    type: object
+  sing-box-web-panel_internal_services_notification.SMTPUpdate:
+    properties:
+      clearPassword:
+        type: boolean
+      enabled:
+        type: boolean
+      from:
+        type: string
+      host:
+        type: string
+      mode:
+        type: string
+      password:
+        type: string
+      port:
+        type: integer
+      recipients:
+        items:
+          type: string
+        type: array
+      timeoutSec:
+        type: integer
+      username:
+        type: string
+    type: object
+  sing-box-web-panel_internal_services_notification.SMTPView:
+    properties:
+      enabled:
+        type: boolean
+      from:
+        type: string
+      host:
+        type: string
+      mode:
+        type: string
+      passwordConfigured:
+        type: boolean
+      port:
+        type: integer
+      recipients:
+        items:
+          type: string
+        type: array
+      timeoutSec:
+        type: integer
+      username:
+        type: string
+    type: object
+  sing-box-web-panel_internal_services_notification.TelegramUpdate:
+    properties:
+      apiBase:
+        type: string
+      botToken:
+        type: string
+      chatId:
+        type: string
+      clearBotToken:
+        type: boolean
+      enabled:
+        type: boolean
+      timeoutSec:
+        type: integer
+    type: object
+  sing-box-web-panel_internal_services_notification.TelegramView:
+    properties:
+      apiBase:
+        type: string
+      botTokenConfigured:
+        type: boolean
+      chatId:
+        type: string
+      enabled:
+        type: boolean
+      timeoutSec:
+        type: integer
+    type: object
+  sing-box-web-panel_internal_services_notification.Update:
+    properties:
+      expiryWarningHours:
+        type: integer
+      quotaWarningPercent:
+        type: integer
+      smtp:
+        $ref: '#/definitions/sing-box-web-panel_internal_services_notification.SMTPUpdate'
+      telegram:
+        $ref: '#/definitions/sing-box-web-panel_internal_services_notification.TelegramUpdate'
+    type: object
+  sing-box-web-panel_internal_services_notification.View:
+    properties:
+      expiryWarningHours:
+        type: integer
+      lastTest:
+        $ref: '#/definitions/sing-box-web-panel_internal_services_notification.LastTestView'
+      quotaWarningPercent:
+        type: integer
+      smtp:
+        $ref: '#/definitions/sing-box-web-panel_internal_services_notification.SMTPView'
+      telegram:
+        $ref: '#/definitions/sing-box-web-panel_internal_services_notification.TelegramView'
     type: object
 host: localhost:8080
 info:
@@ -1588,6 +1704,83 @@ paths:
       summary: Panel version and update status
       tags:
       - panel
+  /settings/notifications:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sing-box-web-panel_internal_services_notification.View'
+      security:
+      - BearerAuth: []
+      summary: Get notification settings without secrets
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: Empty secrets preserve configured values. clearPassword and clearBotToken
+        remove them explicitly.
+      parameters:
+      - description: Notification settings
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/sing-box-web-panel_internal_services_notification.Update'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sing-box-web-panel_internal_services_notification.View'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update notification settings
+      tags:
+      - settings
+  /settings/notifications/test:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Channel
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_transport_handler.notificationTestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/sing-box-web-panel_internal_services_notification.LastTestView'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/sing-box-web-panel_internal_services_notification.LastTestView'
+      security:
+      - BearerAuth: []
+      summary: Send a test notification
+      tags:
+      - settings
   /subscription/{token}:
     get:
       description: Returns the client's connection config. ?format=base64|plain|json

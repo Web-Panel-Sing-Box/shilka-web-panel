@@ -1757,6 +1757,129 @@ const docTemplate = `{
                 }
             }
         },
+        "/settings/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get notification settings without secrets",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.View"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Empty secrets preserve configured values. clearPassword and clearBotToken remove them explicitly.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Update notification settings",
+                "parameters": [
+                    {
+                        "description": "Notification settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.Update"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.View"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/notifications/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Send a test notification",
+                "parameters": [
+                    {
+                        "description": "Channel",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_transport_handler.notificationTestRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.LastTestView"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.LastTestView"
+                        }
+                    }
+                }
+            }
+        },
         "/subscription/{token}": {
             "get": {
                 "description": "Returns the client's connection config. ?format=base64|plain|json (default base64).",
@@ -2460,6 +2583,14 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_transport_handler.notificationTestRequest": {
+            "type": "object",
+            "properties": {
+                "channel": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_transport_handler.panelVersionDTO": {
             "type": "object",
             "properties": {
@@ -2577,6 +2708,176 @@ const docTemplate = `{
                 },
                 "totalQuota": {
                     "type": "integer"
+                }
+            }
+        },
+        "sing-box-web-panel_internal_services_notification.LastTestView": {
+            "type": "object",
+            "properties": {
+                "at": {
+                    "type": "string"
+                },
+                "channel": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "sing-box-web-panel_internal_services_notification.SMTPUpdate": {
+            "type": "object",
+            "properties": {
+                "clearPassword": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "recipients": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "timeoutSec": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "sing-box-web-panel_internal_services_notification.SMTPView": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "passwordConfigured": {
+                    "type": "boolean"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "recipients": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "timeoutSec": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "sing-box-web-panel_internal_services_notification.TelegramUpdate": {
+            "type": "object",
+            "properties": {
+                "apiBase": {
+                    "type": "string"
+                },
+                "botToken": {
+                    "type": "string"
+                },
+                "chatId": {
+                    "type": "string"
+                },
+                "clearBotToken": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "timeoutSec": {
+                    "type": "integer"
+                }
+            }
+        },
+        "sing-box-web-panel_internal_services_notification.TelegramView": {
+            "type": "object",
+            "properties": {
+                "apiBase": {
+                    "type": "string"
+                },
+                "botTokenConfigured": {
+                    "type": "boolean"
+                },
+                "chatId": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "timeoutSec": {
+                    "type": "integer"
+                }
+            }
+        },
+        "sing-box-web-panel_internal_services_notification.Update": {
+            "type": "object",
+            "properties": {
+                "expiryWarningHours": {
+                    "type": "integer"
+                },
+                "quotaWarningPercent": {
+                    "type": "integer"
+                },
+                "smtp": {
+                    "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.SMTPUpdate"
+                },
+                "telegram": {
+                    "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.TelegramUpdate"
+                }
+            }
+        },
+        "sing-box-web-panel_internal_services_notification.View": {
+            "type": "object",
+            "properties": {
+                "expiryWarningHours": {
+                    "type": "integer"
+                },
+                "lastTest": {
+                    "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.LastTestView"
+                },
+                "quotaWarningPercent": {
+                    "type": "integer"
+                },
+                "smtp": {
+                    "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.SMTPView"
+                },
+                "telegram": {
+                    "$ref": "#/definitions/sing-box-web-panel_internal_services_notification.TelegramView"
                 }
             }
         }
