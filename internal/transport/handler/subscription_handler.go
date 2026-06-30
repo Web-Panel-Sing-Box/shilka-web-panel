@@ -2,11 +2,14 @@ package handler
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+
+	qrcode "github.com/skip2/go-qrcode"
 
 	"sing-box-web-panel/internal/domain"
 	"sing-box-web-panel/internal/repo"
@@ -50,10 +53,10 @@ func NewSubscriptionHandler(clients ClientByToken, inbounds InboundByID, setting
 }
 
 func (h *SubscriptionHandler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /sub/{token}", h.Serve)                   // public
-	mux.HandleFunc("GET /api/subscription/{token}", h.Serve)      // public
-	mux.HandleFunc("GET /api/subscription/{token}/meta", h.Meta)  // public (subscription page)
-	mux.HandleFunc("GET /api/clients/{id}/links", h.Links)        // authenticated
+	mux.HandleFunc("GET /sub/{token}", h.Serve)                  // public
+	mux.HandleFunc("GET /api/subscription/{token}", h.Serve)     // public
+	mux.HandleFunc("GET /api/subscription/{token}/meta", h.Meta) // public (subscription page)
+	mux.HandleFunc("GET /api/clients/{id}/links", h.Links)       // authenticated
 }
 
 // wantsHTML reports whether the request comes from a browser navigation that
@@ -196,6 +199,7 @@ type clientLinksDTO struct {
 	Link         string                `json:"link"`
 	ShareLink    string                `json:"shareLink"`
 	Subscription string                `json:"subscription"`
+	QRPng        string                `json:"qrPng"`
 	Links        []subscriptionLinkDTO `json:"links"`
 }
 
@@ -233,10 +237,22 @@ func (h *SubscriptionHandler) Links(w http.ResponseWriter, r *http.Request) {
 	if len(links) > 0 {
 		first = links[0].URL
 	}
+	qrPNG := ""
+	if first != "" {
+		png, err := qrcode.Encode(first, qrcode.Medium, 256)
+		if err != nil {
+			h.log.Error("encode client qr", slog.String("error", err.Error()))
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to generate qr code"})
+			return
+		}
+		qrPNG = "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+	}
+	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, clientLinksDTO{
 		Link:         first,
 		ShareLink:    first,
 		Subscription: sub,
+		QRPng:        qrPNG,
 		Links:        links,
 	})
 }

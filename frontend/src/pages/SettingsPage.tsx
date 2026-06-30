@@ -5,6 +5,7 @@ import { ChangePasswordModal } from "@/components/auth/change-password-modal";
 import { TwoFactorDisableModal } from "@/components/auth/two-factor-disable-modal";
 import { TwoFactorSetupModal } from "@/components/auth/two-factor-setup-modal";
 import { ScheduledTaskList } from "@/components/settings/scheduled-task-list";
+import { NotificationSettings } from "@/components/settings/notification-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
@@ -167,6 +168,10 @@ export function SettingsPage() {
         <Row label={t("settings.tokenTtl")} hint={t("settings.tokenTtlHint")}>
           <Input value={ttl} onChange={(e) => setTtl(e.target.value)} mono />
         </Row>
+      </Section>
+
+      <Section title={t("settings.notifications.title")}>
+        <NotificationSettings />
       </Section>
 
       <Section title={t("settings.tasks.title")}>

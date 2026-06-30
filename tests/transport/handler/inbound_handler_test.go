@@ -220,6 +220,33 @@ func TestInboundHandlerCreateAllowInsecureAutoResponse(t *testing.T) {
 	}
 }
 
+func TestInboundHandlerCreateHTTPUpgradeRoundTrip(t *testing.T) {
+	repo := newInboundFakeRepo()
+	mux := testInboundMux(repo)
+	body, _ := json.Marshal(map[string]any{
+		"remark":          "upgrade",
+		"protocol":        "vless",
+		"port":            8080,
+		"transmission":    "httpupgrade",
+		"tls":             "none",
+		"httpUpgradePath": "/upgrade",
+		"httpUpgradeHost": "edge.example.com",
+	})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/inbounds", bytes.NewReader(body)))
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body: %s", rec.Code, rec.Body.String())
+	}
+	if repo.items[1].Transmission != domain.TransmissionHTTPUpgrade {
+		t.Fatalf("stored transmission = %q", repo.items[1].Transmission)
+	}
+	settings := responseSettings(t, rec.Body.Bytes())
+	if settings["httpUpgradePath"] != "/upgrade" || settings["httpUpgradeHost"] != "edge.example.com" {
+		t.Fatalf("response settings = %#v", settings)
+	}
+}
+
 func TestInboundHandlerCreateOnNodeCachesRemoteInbound(t *testing.T) {
 	repo := newInboundFakeRepo()
 	mux := testInboundRemoteMux(repo)

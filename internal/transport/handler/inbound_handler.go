@@ -42,6 +42,8 @@ type inboundSettingsDTO struct {
 	Flow            string `json:"flow,omitempty"`
 	WSPath          string `json:"wsPath,omitempty"`
 	GRPCServiceName string `json:"grpcServiceName,omitempty"`
+	HTTPUpgradePath string `json:"httpUpgradePath,omitempty"`
+	HTTPUpgradeHost string `json:"httpUpgradeHost,omitempty"`
 	// VLESS multiplex.
 	MultiplexEnabled bool `json:"multiplexEnabled,omitempty"`
 	// Hysteria2.
@@ -113,6 +115,8 @@ func toInboundDTO(ib *domain.Inbound, clientCount int) inboundDTO {
 		Flow:                     ib.Settings.Flow,
 		WSPath:                   ib.Settings.WSPath,
 		GRPCServiceName:          ib.Settings.GRPCServiceName,
+		HTTPUpgradePath:          ib.Settings.HTTPUpgradePath,
+		HTTPUpgradeHost:          ib.Settings.HTTPUpgradeHost,
 		MultiplexEnabled:         ib.Settings.MultiplexEnabled,
 		Hy2UpMbps:                ib.Settings.Hy2UpMbps,
 		Hy2DownMbps:              ib.Settings.Hy2DownMbps,
@@ -151,6 +155,11 @@ type inboundRequest struct {
 	CertPath      string `json:"certPath,omitempty"`
 	KeyPath       string `json:"keyPath,omitempty"`
 	AllowInsecure *bool  `json:"allowInsecure,omitempty"`
+	// VLESS transport settings.
+	WSPath          string `json:"wsPath,omitempty"`
+	GRPCServiceName string `json:"grpcServiceName,omitempty"`
+	HTTPUpgradePath string `json:"httpUpgradePath,omitempty"`
+	HTTPUpgradeHost string `json:"httpUpgradeHost,omitempty"`
 	// VLESS multiplex.
 	MultiplexEnabled bool `json:"multiplexEnabled,omitempty"`
 	// Hysteria2.
@@ -183,6 +192,10 @@ func (req inboundRequest) toInput() svcinbound.Input {
 		CertPath:                 req.CertPath,
 		KeyPath:                  req.KeyPath,
 		AllowInsecure:            req.AllowInsecure,
+		WSPath:                   req.WSPath,
+		GRPCServiceName:          req.GRPCServiceName,
+		HTTPUpgradePath:          req.HTTPUpgradePath,
+		HTTPUpgradeHost:          req.HTTPUpgradeHost,
 		MultiplexEnabled:         req.MultiplexEnabled,
 		Hy2UpMbps:                req.Hy2UpMbps,
 		Hy2DownMbps:              req.Hy2DownMbps,

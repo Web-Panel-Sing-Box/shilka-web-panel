@@ -71,6 +71,40 @@ func TestChecker_MissingFile(t *testing.T) {
 	}
 }
 
+func TestHTTPUpgradeGeneratedConfigPassesCheck(t *testing.T) {
+	skipWithoutSingBox(t)
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.json")
+	gen := singbox.NewGenerator(
+		fakeInbounds{list: []domain.Inbound{{
+			ID: 1, Remark: "httpupgrade", Protocol: domain.ProtocolVLESS,
+			Port: freeTCPPort(t), Transmission: domain.TransmissionHTTPUpgrade,
+			TLS: domain.TLSModeNone, Enabled: true,
+			Settings: domain.InboundSettings{
+				HTTPUpgradePath: "/upgrade",
+				HTTPUpgradeHost: "edge.example.com",
+			},
+		}}},
+		fakeClients{list: []domain.Client{{
+			ID: 1, InboundID: 1, Name: "alice",
+			UUID:   "11111111-1111-4111-8111-111111111111",
+			Status: domain.ClientStatusActive, Enabled: true,
+		}}},
+		singbox.GeneratorConfig{ClashAPIAddress: fmt.Sprintf("127.0.0.1:%d", freeTCPPort(t))},
+	)
+	data, err := gen.Render(context.Background())
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	if err := os.WriteFile(configPath, data, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	checker := singbox.NewChecker("sing-box", 5*time.Second)
+	if err := checker.Check(context.Background(), configPath); err != nil {
+		t.Fatalf("HTTPUpgrade config should pass sing-box check: %v\n%s", err, data)
+	}
+}
+
 // --- ProcessManager integration tests ---
 
 func TestProcessManager_StartStopStatus(t *testing.T) {

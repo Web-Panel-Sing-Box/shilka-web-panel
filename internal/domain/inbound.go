@@ -17,9 +17,10 @@ const (
 type Transmission string
 
 const (
-	TransmissionTCP  Transmission = "tcp"
-	TransmissionWS   Transmission = "ws"
-	TransmissionGRPC Transmission = "grpc"
+	TransmissionTCP         Transmission = "tcp"
+	TransmissionWS          Transmission = "ws"
+	TransmissionGRPC        Transmission = "grpc"
+	TransmissionHTTPUpgrade Transmission = "httpupgrade"
 )
 
 // TLSMode selects the security layer applied to an inbound.
@@ -62,9 +63,11 @@ type InboundSettings struct {
 	RealityShortID    string `json:"realityShortId,omitempty"`
 	// Flow for VLESS (e.g. "xtls-rprx-vision" with Reality).
 	Flow string `json:"flow,omitempty"`
-	// Transport options (VLESS WS/gRPC).
+	// Transport options (VLESS WS/gRPC/HTTPUpgrade).
 	WSPath          string `json:"wsPath,omitempty"`
 	GRPCServiceName string `json:"grpcServiceName,omitempty"`
+	HTTPUpgradePath string `json:"httpUpgradePath,omitempty"`
+	HTTPUpgradeHost string `json:"httpUpgradeHost,omitempty"`
 	// Standard TLS certificate material (mode = tls, no ACME).
 	CertPath string `json:"certPath,omitempty"`
 	KeyPath  string `json:"keyPath,omitempty"`

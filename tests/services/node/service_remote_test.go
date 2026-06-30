@@ -190,11 +190,13 @@ func (f *fakeRemoteClienter) CreateInbound(context.Context, *domain.Node, svcnod
 func (f *fakeRemoteClienter) UpdateInbound(_ context.Context, _ *domain.Node, remoteID string, in svcnode.RemoteInboundRequest) (*svcnode.RemoteInbound, error) {
 	f.updateInboundReq = &in
 	return &svcnode.RemoteInbound{ID: remoteID, Remark: in.Remark, Protocol: domain.Protocol(in.Protocol), Port: in.Port, TLS: domain.TLSMode(in.TLS), Settings: domain.InboundSettings{
-		ACMEDomain:    in.ACMEDomain,
-		ACMEEmail:     in.ACMEEmail,
-		CertPath:      in.CertPath,
-		KeyPath:       in.KeyPath,
-		AllowInsecure: in.AllowInsecure,
+		ACMEDomain:      in.ACMEDomain,
+		ACMEEmail:       in.ACMEEmail,
+		CertPath:        in.CertPath,
+		KeyPath:         in.KeyPath,
+		AllowInsecure:   in.AllowInsecure,
+		HTTPUpgradePath: in.HTTPUpgradePath,
+		HTTPUpgradeHost: in.HTTPUpgradeHost,
 	}}, nil
 }
 func (f *fakeRemoteClienter) DeleteInbound(context.Context, *domain.Node, string) error {

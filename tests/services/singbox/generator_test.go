@@ -104,6 +104,33 @@ func TestGeneratorV2RaySource(t *testing.T) {
 	}
 }
 
+func TestGeneratorHTTPUpgradeTransport(t *testing.T) {
+	ib := realityInbound()
+	ib.TLS = domain.TLSModeNone
+	ib.Transmission = domain.TransmissionHTTPUpgrade
+	ib.Settings = domain.InboundSettings{
+		HTTPUpgradePath: "/upgrade",
+		HTTPUpgradeHost: "edge.example.com",
+	}
+	gen := singbox.NewGenerator(
+		fakeInbounds{list: []domain.Inbound{ib}},
+		fakeClients{list: []domain.Client{{ID: 1, InboundID: 1, Name: "alice", UUID: "uuid-1", Status: domain.ClientStatusActive}}},
+		singbox.GeneratorConfig{ClashAPIAddress: "127.0.0.1:9090"},
+	)
+	data, err := gen.Render(context.Background())
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	transport := cfg["inbounds"].([]any)[0].(map[string]any)["transport"].(map[string]any)
+	if transport["type"] != "httpupgrade" || transport["path"] != "/upgrade" || transport["host"] != "edge.example.com" {
+		t.Fatalf("transport = %#v", transport)
+	}
+}
+
 func TestGeneratorEmitsPerClientOutboundAndRouteRule(t *testing.T) {
 	gen := singbox.NewGenerator(
 		fakeInbounds{list: []domain.Inbound{realityInbound()}},
@@ -273,8 +300,8 @@ func TestGeneratorLogLevel_FromSettings(t *testing.T) {
 		fakeInbounds{list: []domain.Inbound{realityInbound()}},
 		fakeClients{},
 		singbox.GeneratorConfig{
-			LogLevel:   "info",
-			Settings:   fakeSettingReader{data: map[string]string{domain.SettingLogLevel: "debug"}},
+			LogLevel: "info",
+			Settings: fakeSettingReader{data: map[string]string{domain.SettingLogLevel: "debug"}},
 		},
 	)
 	data, err := gen.Render(context.Background())
@@ -295,8 +322,8 @@ func TestGeneratorLogLevel_FallbackWhenSettingsMissing(t *testing.T) {
 		fakeInbounds{list: []domain.Inbound{realityInbound()}},
 		fakeClients{},
 		singbox.GeneratorConfig{
-			LogLevel:   "warn",
-			Settings:   fakeSettingReader{data: map[string]string{}},
+			LogLevel: "warn",
+			Settings: fakeSettingReader{data: map[string]string{}},
 		},
 	)
 	data, err := gen.Render(context.Background())
@@ -317,8 +344,8 @@ func TestGeneratorLogLevel_FallbackWhenNoSettings(t *testing.T) {
 		fakeInbounds{list: []domain.Inbound{realityInbound()}},
 		fakeClients{},
 		singbox.GeneratorConfig{
-			LogLevel:   "error",
-			Settings:   nil,
+			LogLevel: "error",
+			Settings: nil,
 		},
 	)
 	data, err := gen.Render(context.Background())
@@ -339,8 +366,8 @@ func TestGeneratorLogLevel_DefaultWhenBothEmpty(t *testing.T) {
 		fakeInbounds{list: []domain.Inbound{realityInbound()}},
 		fakeClients{},
 		singbox.GeneratorConfig{
-			LogLevel:   "",
-			Settings:   fakeSettingReader{data: map[string]string{}},
+			LogLevel: "",
+			Settings: fakeSettingReader{data: map[string]string{}},
 		},
 	)
 	data, err := gen.Render(context.Background())

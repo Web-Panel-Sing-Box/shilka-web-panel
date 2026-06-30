@@ -98,6 +98,45 @@ func TestBuildLinkVLESSTLSAllowInsecure(t *testing.T) {
 	}
 }
 
+func TestVLESSHTTPUpgradeLinkAndClientConfig(t *testing.T) {
+	ib := &domain.Inbound{
+		ID: 4, Protocol: domain.ProtocolVLESS, Port: 443,
+		Transmission: domain.TransmissionHTTPUpgrade, TLS: domain.TLSModeTLS,
+		SNI: "panel.example",
+		Settings: domain.InboundSettings{
+			HTTPUpgradePath: "/upgrade",
+			HTTPUpgradeHost: "edge.example.com",
+		},
+	}
+	c := &domain.Client{Name: "dave", UUID: "11111111-1111-4111-8111-111111111111"}
+
+	link := sublink.BuildLink(ib, c, "panel.example")
+	if got := queryValue(t, link, "type"); got != "httpupgrade" {
+		t.Fatalf("type = %q, want httpupgrade", got)
+	}
+	if got := queryValue(t, link, "path"); got != "/upgrade" {
+		t.Fatalf("path = %q, want /upgrade", got)
+	}
+	if got := queryValue(t, link, "host"); got != "edge.example.com" {
+		t.Fatalf("host = %q, want edge.example.com", got)
+	}
+
+	body, err := sublink.BuildClientConfig(ib, c, "panel.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Outbounds []map[string]any `json:"outbounds"`
+	}
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	transport := cfg.Outbounds[0]["transport"].(map[string]any)
+	if transport["type"] != "httpupgrade" || transport["path"] != "/upgrade" || transport["host"] != "edge.example.com" {
+		t.Fatalf("client transport = %#v", transport)
+	}
+}
+
 func TestBuildLinkVLESSRealityOmitsAllowInsecure(t *testing.T) {
 	ib := &domain.Inbound{
 		ID: 5, Protocol: domain.ProtocolVLESS, Port: 443,

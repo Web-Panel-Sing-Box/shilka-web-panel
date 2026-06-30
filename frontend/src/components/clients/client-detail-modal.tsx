@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Copy, QrCode, RefreshCw } from "lucide-react";
 
 import { ApiError } from "@/api/client";
-import { listNodes, type NodeDTO } from "@/api";
+import { getClientLinks, listNodes, type ClientLinksDTO, type NodeDTO } from "@/api";
 import { Button } from "@/components/ui/button";
 import { DateInput, Input, Label, NumberInput } from "@/components/ui/input";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@/components/ui/modal";
@@ -34,6 +34,8 @@ export function ClientDetailModal({ client, onClose }: Props) {
   const [draft, setDraft] = useState<Client | null>(client);
   const [nodes, setNodes] = useState<NodeDTO[]>([]);
   const [qrOpen, setQrOpen] = useState(false);
+  const [qrLinks, setQrLinks] = useState<ClientLinksDTO | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [totalFlowGb, setTotalFlowGb] = useState("");
   const [saving, setSaving] = useState(false);
@@ -44,6 +46,8 @@ export function ClientDetailModal({ client, onClose }: Props) {
       .catch(() => setNodes([]));
     setDraft(client);
     setCopied(false);
+    setQrOpen(false);
+    setQrLinks(null);
     if (client) {
       const gb = Math.round(client.totalQuota / GB);
       setTotalFlowGb(gb > 0 ? String(gb) : "");
@@ -108,6 +112,29 @@ export function ClientDetailModal({ client, onClose }: Props) {
       push(message, "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function openQr() {
+    if (!draft || qrLoading) return;
+    setQrOpen(true);
+    setQrLoading(true);
+    try {
+      const links = await getClientLinks(draft.id);
+      if (!links.qrPng || !links.shareLink) {
+        throw new Error("missing qr payload");
+      }
+      setQrLinks(links);
+    } catch (err) {
+      const body = err instanceof ApiError ? err.body : null;
+      const message =
+        body && typeof body === "object" && body !== null && "error" in body
+          ? String((body as { error: unknown }).error)
+          : t("clients.qrLoadFailed");
+      setQrOpen(false);
+      push(message, "error");
+    } finally {
+      setQrLoading(false);
     }
   }
 
@@ -196,7 +223,7 @@ export function ClientDetailModal({ client, onClose }: Props) {
           </div>
         </ModalBody>
         <ModalFooter>
-          <Button variant="secondary" onClick={() => setQrOpen(true)}>
+          <Button variant="secondary" onClick={() => void openQr()} loading={qrLoading}>
             <QrCode size={14} />
             {t("clients.getQr")}
           </Button>
@@ -213,7 +240,13 @@ export function ClientDetailModal({ client, onClose }: Props) {
           </Button>
         </ModalFooter>
       </Modal>
-      <QrModal open={qrOpen} onClose={() => setQrOpen(false)} payload={draft.subscription} />
+      <QrModal
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        qrPng={qrLinks?.qrPng ?? ""}
+        payload={qrLinks?.shareLink ?? ""}
+        loading={qrLoading}
+      />
     </>
   );
 }
